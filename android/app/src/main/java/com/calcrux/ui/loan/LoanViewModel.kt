@@ -2,7 +2,7 @@ package com.calcrux.ui.loan
 
 import androidx.lifecycle.ViewModel
 import com.calcrux.data.RustBridge
-import uniffi.opencalc.LoanSchedule
+import uniffi.calcrux.LoanSchedule
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

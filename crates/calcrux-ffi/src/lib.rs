@@ -10,7 +10,7 @@
 //!     --language kotlin --out-dir android/app/src/main/java/com/calcrux/generated
 
 // Register this crate as the UniFFI scaffolding root.
-uniffi::setup_scaffolding!();
+uniffi::setup_scaffolding!("calcrux");
 
 use calcrux_engine::{AngleMode, Evaluator};
 use calcrux_units::Converter;

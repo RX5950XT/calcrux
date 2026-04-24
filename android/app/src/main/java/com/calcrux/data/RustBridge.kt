@@ -1,12 +1,12 @@
 package com.calcrux.data
 
-import uniffi.opencalc.amortizeEqualPayment as rustAmortizeEqualPayment
-import uniffi.opencalc.amortizeEqualPrincipal as rustAmortizeEqualPrincipal
-import uniffi.opencalc.calcEval as rustCalcEval
-import uniffi.opencalc.convertUnit as rustConvertUnit
-import uniffi.opencalc.calcruxVersion as rustCalcruxVersion
-import uniffi.opencalc.unitCategories as rustUnitCategories
-import uniffi.opencalc.unitList as rustUnitList
+import uniffi.calcrux.amortizeEqualPayment as rustAmortizeEqualPayment
+import uniffi.calcrux.amortizeEqualPrincipal as rustAmortizeEqualPrincipal
+import uniffi.calcrux.calcEval as rustCalcEval
+import uniffi.calcrux.convertUnit as rustConvertUnit
+import uniffi.calcrux.calcruxVersion as rustCalcruxVersion
+import uniffi.calcrux.unitCategories as rustUnitCategories
+import uniffi.calcrux.unitList as rustUnitList
 
 object RustBridge {
 
