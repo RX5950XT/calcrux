@@ -1,0 +1,12 @@
+[package]
+name = "calcrux-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+astro-float.workspace = true
+malachite.workspace = true
+thiserror.workspace = true
+logos.workspace = true

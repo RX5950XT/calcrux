@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/calcrux-engine",
+    "crates/calcrux-units",
+    "crates/calcrux-loan",
+    "crates/calcrux-fx",
+    "crates/calcrux-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "Apache-2.0"
+repository = "https://github.com/RX5950XT/calcrux"
+
+[workspace.dependencies]
+astro-float = "0.9"
+malachite = { version = "0.4", default-features = false, features = ["naturals_and_integers", "rationals"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+logos = "0.14"
+uniffi = "0.28"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = true

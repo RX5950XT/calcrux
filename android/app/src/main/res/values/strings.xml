@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CalcRux</string>
+
+    <!-- Bottom navigation / top tabs -->
+    <string name="tab_calculator">計算機</string>
+    <string name="tab_convert">換算</string>
+    <string name="tab_unit_convert">單位換算</string>
+    <string name="tab_fx">匯率換算</string>
+    <string name="tab_loan">貸款</string>
+    <string name="tab_history">歷史</string>
+
+    <!-- Calculator -->
+    <string name="calc_hint">算式</string>
+    <string name="calc_error">錯誤</string>
+    <string name="calc_copy">複製結果</string>
+    <string name="calc_degrees">角度</string>
+    <string name="calc_radians">弧度</string>
+    <string name="copy_result">複製</string>
+    <string name="mode_scientific">科學</string>
+    <string name="mode_basic">基本</string>
+
+    <!-- Convert -->
+    <string name="convert_category">類別</string>
+    <string name="convert_from">從</string>
+    <string name="convert_to">到</string>
+    <string name="convert_value">數值</string>
+
+    <!-- Loan -->
+    <string name="loan_principal">本金</string>
+    <string name="loan_annual_rate">年利率 (%)</string>
+    <string name="loan_months">期數 (月)</string>
+    <string name="loan_calculate">計算</string>
+    <string name="loan_equal_payment">等額本息</string>
+    <string name="loan_equal_principal">等額本金</string>
+    <string name="loan_monthly">每月還款</string>
+    <string name="loan_total_interest">總利息</string>
+    <string name="loan_total_payment">總還款</string>
+    <string name="loan_export_csv">匯出 CSV</string>
+    <string name="loan_col_period">期數</string>
+    <string name="loan_col_payment">還款</string>
+    <string name="loan_col_principal">本金</string>
+    <string name="loan_col_interest">利息</string>
+    <string name="loan_col_balance">餘額</string>
+
+    <!-- History -->
+    <string name="history_empty">尚無計算紀錄</string>
+    <string name="history_delete">刪除</string>
+    <string name="history_clear_all">清除全部</string>
+    <string name="history_search">搜尋…</string>
+    <string name="history_export">匯出</string>
+    <string name="history_clear_confirm">確定要刪除所有歷史紀錄？</string>
+    <string name="action_delete">刪除</string>
+    <string name="action_cancel">取消</string>
+
+    <!-- Errors -->
+    <string name="error_eval">計算錯誤</string>
+    <string name="error_network">網路不可用，使用快取匯率</string>
+</resources>

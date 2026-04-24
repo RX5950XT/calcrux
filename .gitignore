@@ -1,0 +1,28 @@
+# Rust build artifacts
+/target
+Cargo.lock.bak
+**/*.rs.bk
+
+# Android build artifacts
+android/app/build/
+android/build/
+android/.gradle/
+android/.kotlin/
+android/app/src/main/jniLibs/
+
+# UniFFI generated Kotlin bindings (recreate with: ./gradlew generateUniFFIBindings)
+android/app/src/main/java/com/calcrux/generated/
+
+# Local machine configuration (contains SDK path)
+android/local.properties
+
+# IDE / OS
+.idea/
+.vscode/
+**/*.iml
+.DS_Store
+Thumbs.db
+*.log
+
+# Release APK / AAB (build artifacts, not source)
+android/app/build/outputs/

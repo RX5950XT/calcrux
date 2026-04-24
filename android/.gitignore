@@ -1,0 +1,17 @@
+# UniFFI generated Kotlin bindings
+app/src/main/java/com/calcrux/generated/
+
+# Rust / cargo-ndk outputs
+app/src/main/jniLibs/
+
+# Gradle build outputs
+.gradle/
+.kotlin/
+**/build/
+
+# Local machine configuration (SDK path)
+local.properties
+
+# IDE
+*.iml
+.idea/

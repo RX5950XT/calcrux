@@ -1,0 +1,22 @@
+[package]
+name = "calcrux-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+name = "calcrux"
+
+[dependencies]
+calcrux-engine = { path = "../calcrux-engine" }
+calcrux-units  = { path = "../calcrux-units" }
+calcrux-loan   = { path = "../calcrux-loan" }
+calcrux-fx     = { path = "../calcrux-fx" }
+uniffi = { workspace = true, features = ["cli"] }
+thiserror.workspace = true
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"

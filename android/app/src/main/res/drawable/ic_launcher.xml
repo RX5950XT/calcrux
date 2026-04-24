@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background: Orange -->
+    <path
+        android:fillColor="#FF6900"
+        android:pathData="M0,0 L108,0 L108,108 L0,108 Z" />
+
+    <!-- White calculator body (rounded corners r=8) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M14,22 C14,17.6 17.6,14 22,14 L86,14 C90.4,14 94,17.6 94,22 L94,90 C94,94.4 90.4,98 86,98 L22,98 C17.6,98 14,94.4 14,90 Z" />
+
+    <!-- Orange display window -->
+    <path
+        android:fillColor="#FF6900"
+        android:pathData="M18,20 C18,19 19,18 20,18 L88,18 C89,18 90,19 90,20 L90,46 C90,47 89,48 88,48 L20,48 C19,48 18,47 18,46 Z" />
+
+    <!-- White "=" bars in display (bold, centered) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,27 L80,27 L80,32 L28,32 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M28,35 L80,35 L80,40 L28,40 Z" />
+
+    <!-- Button grid: 3 rows × 4 cols -->
+    <!-- Columns: 18-33, 35-50, 52-67, 69-90 | Rows: 52-65, 67-80, 82-95 -->
+
+    <!-- Row 1 -->
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M18,52 C18,51 19,50 20,50 L32,50 C33,50 34,51 34,52 L34,64 C34,65 33,66 32,66 L20,66 C19,66 18,65 18,64 Z" />
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M36,52 C36,51 37,50 38,50 L50,50 C51,50 52,51 52,52 L52,64 C52,65 51,66 50,66 L38,66 C37,66 36,65 36,64 Z" />
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M54,52 C54,51 55,50 56,50 L68,50 C69,50 70,51 70,52 L70,64 C70,65 69,66 68,66 L56,66 C55,66 54,65 54,64 Z" />
+    <path android:fillColor="#FF6900"
+        android:pathData="M72,52 C72,51 73,50 74,50 L89,50 C90,50 91,51 91,52 L91,64 C91,65 90,66 89,66 L74,66 C73,66 72,65 72,64 Z" />
+
+    <!-- Row 2 -->
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M18,68 C18,67 19,66 20,66 L32,66 C33,66 34,67 34,68 L34,80 C34,81 33,82 32,82 L20,82 C19,82 18,81 18,80 Z" />
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M36,68 C36,67 37,66 38,66 L50,66 C51,66 52,67 52,68 L52,80 C52,81 51,82 50,82 L38,82 C37,82 36,81 36,80 Z" />
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M54,68 C54,67 55,66 56,66 L68,66 C69,66 70,67 70,68 L70,80 C70,81 69,82 68,82 L56,82 C55,82 54,81 54,80 Z" />
+    <path android:fillColor="#FF6900"
+        android:pathData="M72,68 C72,67 73,66 74,66 L89,66 C90,66 91,67 91,68 L91,80 C91,81 90,82 89,82 L74,82 C73,82 72,81 72,80 Z" />
+
+    <!-- Row 3: "0" spans 2 cols, "." 1 col, "=" 1 col -->
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M18,84 C18,83 19,82 20,82 L50,82 C51,82 52,83 52,84 L52,96 C52,97 51,98 50,98 L20,98 C19,98 18,97 18,96 Z" />
+    <path android:fillColor="#F0F0F0"
+        android:pathData="M54,84 C54,83 55,82 56,82 L68,82 C69,82 70,83 70,84 L70,96 C70,97 69,98 68,98 L56,98 C55,98 54,97 54,96 Z" />
+    <!-- = button: deeper orange -->
+    <path android:fillColor="#E05500"
+        android:pathData="M72,84 C72,83 73,82 74,82 L89,82 C90,82 91,83 91,84 L91,96 C91,97 90,98 89,98 L74,98 C73,98 72,97 72,96 Z" />
+</vector>

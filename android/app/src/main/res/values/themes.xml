@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material You dynamic color base theme; API < 31 falls back to static blue palette. -->
+    <style name="Theme.CalcRux" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>

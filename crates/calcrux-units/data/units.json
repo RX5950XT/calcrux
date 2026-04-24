@@ -1,0 +1,134 @@
+{
+  "length": {
+    "base": "m",
+    "conversions": [
+      {"from": "m", "to": "km",  "ratio": "0.001"},
+      {"from": "m", "to": "dm",  "ratio": "10"},
+      {"from": "m", "to": "cm",  "ratio": "100"},
+      {"from": "m", "to": "mm",  "ratio": "1000"},
+      {"from": "m", "to": "um",  "ratio": "1000000"},
+      {"from": "m", "to": "nm",  "ratio": "1000000000"},
+      {"from": "m", "to": "ang", "ratio": "10000000000"},
+      {"from": "m", "to": "pm",  "ratio": "1000000000000"},
+      {"from": "m", "to": "in",  "ratio": "10000/254"},
+      {"from": "m", "to": "ft",  "ratio": "10000/3048"},
+      {"from": "m", "to": "yd",  "ratio": "10000/9144"},
+      {"from": "m", "to": "mi",  "ratio": "10000/16093440"},
+      {"from": "m", "to": "nmi", "ratio": "1/1852"},
+      {"from": "m", "to": "fm",  "ratio": "10000/18288"},
+      {"from": "m", "to": "fur", "ratio": "10000/2011680"},
+      {"from": "m", "to": "ly",  "ratio": "1/9460730472580800"},
+      {"from": "m", "to": "au",  "ratio": "1/149597870700"},
+      {"from": "m", "to": "ld",  "ratio": "1/384401000"},
+      {"from": "m", "to": "pc",  "ratio": "1/(360*3600*149597870700/2/π)"}
+    ]
+  },
+  "weight": {
+    "base": "kg",
+    "conversions": [
+      {"from": "kg", "to": "t",      "ratio": "0.001"},
+      {"from": "kg", "to": "g",      "ratio": "1000"},
+      {"from": "kg", "to": "mg",     "ratio": "1000000"},
+      {"from": "kg", "to": "ug",     "ratio": "1000000000"},
+      {"from": "kg", "to": "q",      "ratio": "0.01"},
+      {"from": "kg", "to": "ct",     "ratio": "5000"},
+      {"from": "kg", "to": "lb",     "ratio": "1000/453.59237"},
+      {"from": "kg", "to": "oz",     "ratio": "16000/453.59237"},
+      {"from": "kg", "to": "gr",     "ratio": "7000000/453.59237"},
+      {"from": "kg", "to": "lt",     "ratio": "1000/453.59237/2240"},
+      {"from": "kg", "to": "st",     "ratio": "1120/453.59237/2240"},
+      {"from": "kg", "to": "dr",     "ratio": "256000/453.59237"},
+      {"from": "kg", "to": "uk.cwt", "ratio": "1000/453.59237/112"},
+      {"from": "kg", "to": "us.cwt", "ratio": "10/453.59237"},
+      {"from": "kg", "to": "uk.st",  "ratio": "1000/453.59237/14"}
+    ]
+  },
+  "area": {
+    "base": "sq.m",
+    "conversions": [
+      {"from": "sq.m", "to": "sq.km", "ratio": "0.000001"},
+      {"from": "sq.m", "to": "ha",    "ratio": "0.0001"},
+      {"from": "sq.m", "to": "are",   "ratio": "0.01"},
+      {"from": "sq.m", "to": "sq.dm", "ratio": "100"},
+      {"from": "sq.m", "to": "sq.cm", "ratio": "10000"},
+      {"from": "sq.m", "to": "sq.mm", "ratio": "1000000"},
+      {"from": "sq.m", "to": "sq.um", "ratio": "1000000000000"},
+      {"from": "sq.m", "to": "sq.in", "ratio": "25000000/16129"},
+      {"from": "sq.m", "to": "sq.rd", "ratio": "25000000/632321316"},
+      {"from": "sq.m", "to": "acre",  "ratio": "250/1011714"},
+      {"from": "sq.m", "to": "sq.mi", "ratio": "10000*10000/16093440/16093440"},
+      {"from": "sq.m", "to": "sq.yd", "ratio": "25000000/20903184"},
+      {"from": "sq.m", "to": "sq.ft", "ratio": "25000000/2322576"}
+    ]
+  },
+  "volume": {
+    "base": "cu.m",
+    "conversions": [
+      {"from": "cu.m", "to": "cu.cm", "ratio": "1000000"},
+      {"from": "cu.m", "to": "cu.dm", "ratio": "1000"},
+      {"from": "cu.m", "to": "cu.mm", "ratio": "1000000000"},
+      {"from": "cu.m", "to": "hl",    "ratio": "10"},
+      {"from": "cu.m", "to": "l",     "ratio": "1000"},
+      {"from": "cu.m", "to": "cl",    "ratio": "100000"},
+      {"from": "cu.m", "to": "dl",    "ratio": "10000"},
+      {"from": "cu.m", "to": "ml",    "ratio": "1000000"},
+      {"from": "cu.m", "to": "cu.ft", "ratio": "1000000000000/3048/3048/3048"},
+      {"from": "cu.m", "to": "cu.in", "ratio": "1000000000000/254/254/254"},
+      {"from": "cu.m", "to": "cu.yd", "ratio": "1000000000000/9144/9144/9144"},
+      {"from": "cu.m", "to": "cu.af", "ratio": "1/1234"}
+    ]
+  },
+  "time": {
+    "base": "s",
+    "conversions": [
+      {"from": "s",    "to": "ms",   "ratio": "1000"},
+      {"from": "s",    "to": "us",   "ratio": "1000000"},
+      {"from": "s",    "to": "ps",   "ratio": "1000000000000"},
+      {"from": "s",    "to": "min",  "formula": "x/60"},
+      {"from": "min",  "to": "s",    "formula": "x*60"},
+      {"from": "s",    "to": "h",    "formula": "x/3600"},
+      {"from": "h",    "to": "s",    "formula": "x*3600"},
+      {"from": "s",    "to": "day",  "formula": "x/86400"},
+      {"from": "day",  "to": "s",    "formula": "x*86400"},
+      {"from": "s",    "to": "week", "formula": "x/604800"},
+      {"from": "week", "to": "s",    "formula": "x*604800"},
+      {"from": "s",    "to": "yr",   "formula": "x/31536000"},
+      {"from": "yr",   "to": "s",    "formula": "x*31536000"}
+    ]
+  },
+  "temperature": {
+    "base": "C",
+    "conversions": [
+      {"from": "C", "to": "F",  "formula": "1.8*(x)+32"},
+      {"from": "F", "to": "C",  "formula": "(x-32)/1.8"},
+      {"from": "C", "to": "K",  "formula": "x+273.15"},
+      {"from": "K", "to": "C",  "formula": "x-273.15"},
+      {"from": "C", "to": "R",  "formula": "(x+273.15)*1.8"},
+      {"from": "R", "to": "C",  "formula": "(x)/1.8-273.15"},
+      {"from": "C", "to": "Re", "ratio": "0.8"}
+    ]
+  },
+  "velocity": {
+    "base": "mps",
+    "conversions": [
+      {"from": "mps", "to": "kmph",  "ratio": "3.6"},
+      {"from": "mps", "to": "kmps",  "ratio": "0.001"},
+      {"from": "mps", "to": "c",     "ratio": "1/299792458"},
+      {"from": "mps", "to": "mach",  "ratio": "1/340.3"},
+      {"from": "mps", "to": "nmiph", "ratio": "3600/1852"},
+      {"from": "mps", "to": "mileph","ratio": "3600*10000/16093440"},
+      {"from": "mps", "to": "ftps",  "ratio": "10000/3048"},
+      {"from": "mps", "to": "inps",  "ratio": "10000/254"}
+    ]
+  },
+  "data": {
+    "base": "b",
+    "conversions": [
+      {"from": "b",  "to": "kb", "ratio": "1/1024"},
+      {"from": "b",  "to": "mb", "ratio": "1/1048576"},
+      {"from": "b",  "to": "gb", "ratio": "1/1073741824"},
+      {"from": "b",  "to": "tb", "ratio": "1/1099511627776"},
+      {"from": "b",  "to": "pb", "ratio": "1/1125899906842624"}
+    ]
+  }
+}
