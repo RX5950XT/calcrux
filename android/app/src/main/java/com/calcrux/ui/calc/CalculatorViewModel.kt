@@ -27,7 +27,6 @@ data class CalculatorState(
 class CalculatorViewModel @Inject constructor(
     private val historyDao: HistoryDao,
 ) : ViewModel() {
-
     private val _state = MutableStateFlow(CalculatorState())
     val state = _state.asStateFlow()
 
@@ -60,7 +59,7 @@ class CalculatorViewModel @Inject constructor(
                 }
                 CalcKey.Equals   -> evaluate(s)
                 is CalcKey.Digit -> append(s, key.ch)
-                is CalcKey.Op    -> append(s, key.ch)
+                is CalcKey.Op    -> appendOperator(s, key.ch)
                 is CalcKey.Func  -> append(s, key.insert)
             }
         }
@@ -71,6 +70,15 @@ class CalculatorViewModel @Inject constructor(
         return s.copy(
             expression = expr,
             preview = recompute(expr, s.degreesMode),
+            error = "",
+        )
+    }
+
+    private fun appendOperator(s: CalculatorState, ch: String): CalculatorState {
+        val expression = normalizeArithmeticOperatorAppend(s.expression, ch) ?: return append(s, ch)
+        return s.copy(
+            expression = expression,
+            preview = recompute(expression, s.degreesMode),
             error = "",
         )
     }
@@ -94,6 +102,20 @@ class CalculatorViewModel @Inject constructor(
             RustBridge.calcEval(expr, degrees)
         } catch (_: Exception) {
             ""
+        }
+    }
+
+    companion object {
+        private val arithmeticOperators = setOf("+", "-", "×", "÷")
+
+        internal fun normalizeArithmeticOperatorAppend(expression: String, ch: String): String? {
+            if (ch !in arithmeticOperators) return null
+            if (expression.isBlank()) return expression
+            return if (expression.takeLast(1) in arithmeticOperators) {
+                expression.dropLast(1) + ch
+            } else {
+                expression + ch
+            }
         }
     }
 }

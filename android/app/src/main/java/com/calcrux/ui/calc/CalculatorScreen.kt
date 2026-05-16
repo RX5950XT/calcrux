@@ -2,6 +2,7 @@ package com.calcrux.ui.calc
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.Icons
@@ -15,6 +16,7 @@ import androidx.compose.ui.input.key.*
 import android.content.ClipData
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
@@ -29,6 +31,7 @@ fun CalculatorScreen(
 ) {
     val state by vm.state.collectAsState()
     val clipboard = LocalClipboard.current
+    val haptic = LocalHapticFeedback.current
     val coroutineScope = rememberCoroutineScope()
     val exprScroll = rememberScrollState()
 
@@ -182,7 +185,10 @@ fun CalculatorScreen(
 
         // ── Keypad ─────────────────────────────────────────────────────────
         Keypad(
-            onKey = { key -> vm.onKey(key) },
+            onKey = { key ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                vm.onKey(key)
+            },
             invMode = state.invMode,
             scientificMode = state.scientificMode,
             modifier = Modifier

@@ -19,7 +19,7 @@
 
 ## 建置環境
 
-- Rust stable
+- Rust `1.94.0`（見 `rust-toolchain.toml`，避免較新 stable 在 Android cross-compile 出現 ICE）
 - `cargo-ndk`
 - Android SDK：`C:\Android\sdk`
 - Android NDK：`C:\Android\sdk\ndk\27.0.12077973`
@@ -43,13 +43,21 @@ cargo test --workspace
 cd android
 .\gradlew.bat generateUniFFIBindings
 .\gradlew.bat assembleDebug
+.\gradlew.bat assembleRelease
 ```
 
 APK 輸出位置：
 
 ```text
 android/app/build/outputs/apk/debug/app-debug.apk
+android/app/build/outputs/apk/release/app-release.apk
 ```
+
+## 近期注意
+
+- 計算機四則運算輸入規則：`+ - × ÷` 不可連續重複；若上一個字元已是四則運算符，再點新的運算符時直接覆寫最後一個符號
+- 計算機按鍵點擊已加入 haptic feedback
+- 此工作站目前 `AvailPageFile` 極低，Rust Android cross-compile 與 Gradle daemon 都可能因分頁檔不足失敗；若要重建 native library，優先確認系統分頁檔空間
 
 ## 現況摘要
 
