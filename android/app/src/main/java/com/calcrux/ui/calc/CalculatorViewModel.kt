@@ -21,6 +21,8 @@ data class CalculatorState(
     val degreesMode: Boolean = true,
     val invMode: Boolean = false,
     val scientificMode: Boolean = true,
+    /** True after pressing =; keeps the display scrolled to the start of the result. */
+    val isResult: Boolean = false,
 )
 
 @HiltViewModel
@@ -44,18 +46,18 @@ class CalculatorViewModel @Inject constructor(
 
     fun setExpression(expr: String) {
         _state.update { s ->
-            s.copy(expression = expr, preview = recompute(expr, s.degreesMode), error = "")
+            s.copy(expression = expr, preview = recompute(expr, s.degreesMode), error = "", isResult = false)
         }
     }
 
     fun onKey(key: CalcKey) {
         _state.update { s ->
             when (key) {
-                CalcKey.Clear     -> s.copy(expression = "", preview = "", error = "")
-                CalcKey.ClearAll  -> s.copy(expression = "", preview = "", error = "")
+                CalcKey.Clear     -> s.copy(expression = "", preview = "", error = "", isResult = false)
+                CalcKey.ClearAll  -> s.copy(expression = "", preview = "", error = "", isResult = false)
                 CalcKey.Backspace -> {
                     val expr = s.expression.dropLast(1)
-                    s.copy(expression = expr, preview = recompute(expr, s.degreesMode), error = "")
+                    s.copy(expression = expr, preview = recompute(expr, s.degreesMode), error = "", isResult = false)
                 }
                 CalcKey.Equals   -> evaluate(s)
                 is CalcKey.Digit -> append(s, key.ch)
@@ -71,6 +73,7 @@ class CalculatorViewModel @Inject constructor(
             expression = expr,
             preview = recompute(expr, s.degreesMode),
             error = "",
+            isResult = false,
         )
     }
 
@@ -80,6 +83,7 @@ class CalculatorViewModel @Inject constructor(
             expression = expression,
             preview = recompute(expression, s.degreesMode),
             error = "",
+            isResult = false,
         )
     }
 
@@ -90,7 +94,7 @@ class CalculatorViewModel @Inject constructor(
             viewModelScope.launch {
                 historyDao.insert(HistoryEntry(expression = s.expression, result = result, source = "calculator"))
             }
-            s.copy(expression = result, preview = "", error = "")
+            s.copy(expression = result, preview = "", error = "", isResult = true)
         } catch (e: Exception) {
             s.copy(error = e.message?.take(80) ?: "Error")
         }

@@ -5,10 +5,11 @@
 //! [`astro_float::BigFloat`] for irrational / transcendental values.
 
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 
 use astro_float::{BigFloat, Consts, RoundingMode};
-use malachite::num::arithmetic::traits::Pow;
+use malachite::num::arithmetic::traits::{Abs, DivisibleBy, DivMod, Floor, Pow};
 use malachite::num::basic::traits::{One, Zero};
 use malachite::{Integer, Natural, Rational};
 
@@ -252,13 +253,100 @@ fn parse_bigfloat(s: &str, prec: usize) -> BigFloat {
     with_consts(|c| BigFloat::parse(s, astro_float::Radix::Dec, prec, ROUND, c))
 }
 
+fn is_terminating_denominator(d: &Natural) -> bool {
+    let mut n = d.clone();
+    let two = Natural::from(2u32);
+    let five = Natural::from(5u32);
+    loop {
+        if n.clone().divisible_by(&two) {
+            n /= &two;
+        } else if n.clone().divisible_by(&five) {
+            n /= &five;
+        } else {
+            break;
+        }
+    }
+    n == Natural::ONE
+}
+
+fn digit_char(d: u32) -> char {
+    char::from(b'0' + d as u8)
+}
+
+fn digits_to_string(digits: &[u32]) -> String {
+    digits.iter().copied().map(digit_char).collect()
+}
+
+/// Long-division cycle detection for the fractional part `num/den` (0 ≤ num < den).
+fn repeating_decimal_parts(num: &Natural, den: &Natural) -> (String, String) {
+    let ten = Natural::from(10u32);
+    let mut remainders: HashMap<Natural, usize> = HashMap::new();
+    let mut digits: Vec<u32> = Vec::new();
+    let mut rem = num.clone();
+
+    loop {
+        if rem == Natural::ZERO {
+            return (digits_to_string(&digits), String::new());
+        }
+        if let Some(&pos) = remainders.get(&rem) {
+            return (
+                digits_to_string(&digits[..pos]),
+                digits_to_string(&digits[pos..]),
+            );
+        }
+        remainders.insert(rem.clone(), digits.len());
+        rem *= &ten;
+        let (q, r) = rem.div_mod(den.clone());
+        let digit = u32::try_from(&q).unwrap_or(0);
+        digits.push(digit);
+        rem = r;
+    }
+}
+
+fn format_repeating_decimal(neg: bool, int_part: &str, prefix: &str, repeat: &str) -> String {
+    let mut out = String::new();
+    if neg {
+        out.push('-');
+    }
+    out.push_str(int_part);
+    out.push('.');
+    out.push_str(prefix);
+    if !repeat.is_empty() {
+        out.push('(');
+        out.push_str(repeat);
+        out.push(')');
+    }
+    out
+}
+
 fn format_rational(r: &Rational, digits: usize) -> String {
     // Integer fast-path.
     if let Ok(i) = i128::try_from(r) {
         return i.to_string();
     }
-    let bf = rational_to_bigfloat(r, digits.saturating_mul(4).max(DEFAULT_PREC));
-    format_bigfloat(&bf, digits)
+
+    let neg = *r < Rational::ZERO;
+    let abs = r.abs();
+    let int_floor = abs.clone().floor();
+    let int_part = int_floor.to_string();
+    let frac = abs - Rational::from(int_floor);
+
+    if frac == Rational::ZERO {
+        return if neg {
+            format!("-{int_part}")
+        } else {
+            int_part
+        };
+    }
+
+    let (num, den) = frac.into_numerator_and_denominator();
+    if is_terminating_denominator(&den) {
+        let bf = rational_to_bigfloat(r, digits.saturating_mul(4).max(DEFAULT_PREC));
+        return format_bigfloat(&bf, digits);
+    }
+
+    let (prefix, repeat) = repeating_decimal_parts(&num, &den);
+    format_repeating_decimal(neg, &int_part, &prefix, &repeat)
 }
 
 fn format_bigfloat(f: &BigFloat, max_sig_digits: usize) -> String {
@@ -469,6 +557,31 @@ mod tests {
     fn display_rational() {
         let half = r(1, 2);
         assert_eq!(half.to_string(), "0.5");
+    }
+
+    #[test]
+    fn display_repeating_third() {
+        assert_eq!(r(1, 3).to_string(), "0.(3)");
+    }
+
+    #[test]
+    fn display_repeating_sixth() {
+        assert_eq!(r(1, 6).to_string(), "0.1(6)");
+    }
+
+    #[test]
+    fn display_repeating_seventh() {
+        assert_eq!(r(1, 7).to_string(), "0.(142857)");
+    }
+
+    #[test]
+    fn display_repeating_mixed_integer() {
+        assert_eq!(r(7, 3).to_string(), "2.(3)");
+    }
+
+    #[test]
+    fn display_terminating_eighth() {
+        assert_eq!(r(1, 8).to_string(), "0.125");
     }
 
     #[test]

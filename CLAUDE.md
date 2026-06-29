@@ -56,7 +56,8 @@ android/app/build/outputs/apk/release/app-release.apk
 ## 近期注意
 
 - 計算機四則運算輸入規則：`+ - × ÷` 不可連續重複；若上一個字元已是四則運算符，再點新的運算符時直接覆寫最後一個符號
-- 計算機按鍵點擊已加入 haptic feedback
+- 計算機按鍵點擊已加入 haptic feedback；單位換算與匯率 NumPad 共用相同震動
+- 循環小數顯示：`1/3` → `0.(3)`、`1/6` → `0.1(6)`；計算結果顯示區捲動至開頭
 - 此工作站目前 `AvailPageFile` 極低，Rust Android cross-compile 與 Gradle daemon 都可能因分頁檔不足失敗；若要重建 native library，優先確認系統分頁檔空間
 
 ## 現況摘要

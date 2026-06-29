@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.SwapVert
@@ -157,6 +158,14 @@ private fun ConvertInputCard(
         value.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.primary
     }
+    val valueScroll = rememberScrollState()
+    LaunchedEffect(displayText, isInput) {
+        if (isInput) {
+            valueScroll.scrollTo(valueScroll.maxValue)
+        } else {
+            valueScroll.scrollTo(0)
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -203,7 +212,10 @@ private fun ConvertInputCard(
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.End,
                 color = textColor,
-                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(valueScroll),
             )
         }
     }

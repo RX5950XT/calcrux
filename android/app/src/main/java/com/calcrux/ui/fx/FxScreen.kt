@@ -1,7 +1,10 @@
 package com.calcrux.ui.fx
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -172,6 +175,14 @@ private fun FxInputCard(
         value.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.primary
     }
+    val valueScroll = rememberScrollState()
+    LaunchedEffect(displayText, isInput) {
+        if (isInput) {
+            valueScroll.scrollTo(valueScroll.maxValue)
+        } else {
+            valueScroll.scrollTo(0)
+        }
+    }
 
     Card(
         modifier = Modifier
@@ -218,7 +229,10 @@ private fun FxInputCard(
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.End,
                 color = textColor,
-                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(valueScroll),
             )
         }
     }

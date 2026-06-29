@@ -35,8 +35,14 @@ fun CalculatorScreen(
     val coroutineScope = rememberCoroutineScope()
     val exprScroll = rememberScrollState()
 
-    // Auto-scroll to end as the expression grows.
-    LaunchedEffect(state.expression) { exprScroll.scrollTo(exprScroll.maxValue) }
+    // Results stay at the start; expressions scroll to the end while typing.
+    LaunchedEffect(state.expression, state.isResult) {
+        if (state.isResult) {
+            exprScroll.scrollTo(0)
+        } else {
+            exprScroll.scrollTo(exprScroll.maxValue)
+        }
+    }
 
     Column(
         modifier = Modifier
