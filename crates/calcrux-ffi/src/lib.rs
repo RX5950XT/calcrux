@@ -64,16 +64,30 @@ pub struct LoanSchedule {
 
 // ── calculator ────────────────────────────────────────────────────────────────
 
+/// Evaluation result: human display vs. expression-safe refeed form.
+///
+/// - `display`: pretty form (repeating decimals use overline U+0305)
+/// - `refeed`: safe to put back into an expression and re-evaluate
+///   (repeating rationals become atom `(p/q)`)
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct CalcResult {
+    pub display: String,
+    pub refeed: String,
+}
+
 /// Evaluate an arithmetic expression.
 ///
 /// `degrees_mode = true` → trig functions work in degrees.
-/// Returns the result as a decimal string (up to 18 significant digits).
+/// Returns both a human-readable display string and a refeed-safe form.
 #[uniffi::export]
-pub fn calc_eval(expression: String, degrees_mode: bool) -> Result<String, CalcError> {
+pub fn calc_eval(expression: String, degrees_mode: bool) -> Result<CalcResult, CalcError> {
     let mode = if degrees_mode { AngleMode::Degrees } else { AngleMode::Radians };
     let eval = Evaluator::new(mode);
     eval.eval_str(&expression)
-        .map(|n| n.to_string())
+        .map(|n| CalcResult {
+            display: n.to_display_string(18),
+            refeed: n.to_refeed_string(18),
+        })
         .map_err(|e| CalcError::Eval(e.to_string()))
 }
 
@@ -169,18 +183,33 @@ mod tests {
 
     #[test]
     fn eval_addition() {
-        assert_eq!(calc_eval("1+2".into(), false).unwrap(), "3");
+        let r = calc_eval("1+2".into(), false).unwrap();
+        assert_eq!(r.display, "3");
+        assert_eq!(r.refeed, "3");
     }
 
     #[test]
     fn eval_sin_90_deg() {
-        let r: f64 = calc_eval("sin(90)".into(), true).unwrap().parse().unwrap();
-        assert!((r - 1.0).abs() < 1e-10);
+        let r = calc_eval("sin(90)".into(), true).unwrap();
+        let v: f64 = r.display.parse().unwrap();
+        assert!((v - 1.0).abs() < 1e-10);
     }
 
     #[test]
     fn eval_error_propagates() {
         assert!(calc_eval("1/0".into(), false).is_err());
+    }
+
+    #[test]
+    fn eval_third_display_and_refeed() {
+        let r = calc_eval("1/3".into(), false).unwrap();
+        assert!(r.display.contains('\u{0305}'), "display={}", r.display);
+        assert!(!r.display.contains('('));
+        assert_eq!(r.refeed, "(1/3)");
+        // Refeed must continue to exact 1.
+        let chained = calc_eval(format!("{}*3", r.refeed), false).unwrap();
+        assert_eq!(chained.display, "1");
+        assert_eq!(chained.refeed, "1");
     }
 
     #[test]

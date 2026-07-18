@@ -194,9 +194,30 @@ impl Number {
     }
 
     /// Format as a decimal string (up to `digits` significant digits).
+    ///
+    /// Human-readable form: repeating rationals use combining overline (U+0305),
+    /// **not** parentheses (which collide with implicit multiplication).
     pub fn to_decimal_string(&self, digits: usize) -> String {
+        self.to_display_string(digits)
+    }
+
+    /// Human-readable display form (may contain U+0305 overlines; not refeed-safe).
+    pub fn to_display_string(&self, digits: usize) -> String {
         match self {
-            Number::Rational(r) => format_rational(r, digits),
+            Number::Rational(r) => format_rational_display(r, digits),
+            Number::Real(f) => format_bigfloat(f, digits),
+        }
+    }
+
+    /// Canonical form safe to splice back into an expression and re-parse.
+    ///
+    /// - Integers / terminating decimals → plain number literals
+    /// - Repeating rationals → atom `(p/q)` or `(-p/q)` (parentheses required
+    ///   so postfix/`^` bind to the whole value, not the denominator)
+    /// - Reals → plain high-precision decimals (same as display; no markers)
+    pub fn to_refeed_string(&self, digits: usize) -> String {
+        match self {
+            Number::Rational(r) => format_rational_refeed(r, digits),
             Number::Real(f) => format_bigfloat(f, digits),
         }
     }
@@ -303,6 +324,9 @@ fn repeating_decimal_parts(num: &Natural, den: &Natural) -> (String, String) {
     }
 }
 
+/// Combining overline (vinculum) for each digit of a repeating block.
+const OVERLINE: char = '\u{0305}';
+
 fn format_repeating_decimal(neg: bool, int_part: &str, prefix: &str, repeat: &str) -> String {
     let mut out = String::new();
     if neg {
@@ -311,15 +335,15 @@ fn format_repeating_decimal(neg: bool, int_part: &str, prefix: &str, repeat: &st
     out.push_str(int_part);
     out.push('.');
     out.push_str(prefix);
-    if !repeat.is_empty() {
-        out.push('(');
-        out.push_str(repeat);
-        out.push(')');
+    // Mark only the repeating block with overlines — never parentheses.
+    for ch in repeat.chars() {
+        out.push(ch);
+        out.push(OVERLINE);
     }
     out
 }
 
-fn format_rational(r: &Rational, digits: usize) -> String {
+fn format_rational_display(r: &Rational, digits: usize) -> String {
     // Integer fast-path.
     if let Ok(i) = i128::try_from(r) {
         return i.to_string();
@@ -347,6 +371,30 @@ fn format_rational(r: &Rational, digits: usize) -> String {
 
     let (prefix, repeat) = repeating_decimal_parts(&num, &den);
     format_repeating_decimal(neg, &int_part, &prefix, &repeat)
+}
+
+/// Refeed form: terminating → plain decimal; repeating → atom `(p/q)`.
+fn format_rational_refeed(r: &Rational, digits: usize) -> String {
+    if let Ok(i) = i128::try_from(r) {
+        return i.to_string();
+    }
+
+    // Terminating decimals refeed as plain decimals (no special markers).
+    if is_terminating_denominator(r.denominator_ref()) {
+        let bf = rational_to_bigfloat(r, digits.saturating_mul(4).max(DEFAULT_PREC));
+        return format_bigfloat(&bf, digits);
+    }
+
+    // Repeating: emit reduced fraction as a single atom so `^` / `!` / `%`
+    // bind to the whole value, not the denominator.
+    let neg = *r < Rational::ZERO;
+    let num = r.numerator_ref();
+    let den = r.denominator_ref();
+    if neg {
+        format!("(-{num}/{den})")
+    } else {
+        format!("({num}/{den})")
+    }
 }
 
 fn format_bigfloat(f: &BigFloat, max_sig_digits: usize) -> String {
@@ -454,7 +502,7 @@ fn round_digits(digits: &str, keep: usize) -> String {
 
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_decimal_string(18))
+        write!(f, "{}", self.to_display_string(18))
     }
 }
 
@@ -559,29 +607,69 @@ mod tests {
         assert_eq!(half.to_string(), "0.5");
     }
 
+    fn overline_digits(digits: &str) -> String {
+        digits
+            .chars()
+            .flat_map(|c| [c, OVERLINE])
+            .collect()
+    }
+
     #[test]
     fn display_repeating_third() {
-        assert_eq!(r(1, 3).to_string(), "0.(3)");
+        assert_eq!(r(1, 3).to_string(), format!("0.{}", overline_digits("3")));
     }
 
     #[test]
     fn display_repeating_sixth() {
-        assert_eq!(r(1, 6).to_string(), "0.1(6)");
+        assert_eq!(r(1, 6).to_string(), format!("0.1{}", overline_digits("6")));
     }
 
     #[test]
     fn display_repeating_seventh() {
-        assert_eq!(r(1, 7).to_string(), "0.(142857)");
+        assert_eq!(
+            r(1, 7).to_string(),
+            format!("0.{}", overline_digits("142857"))
+        );
     }
 
     #[test]
     fn display_repeating_mixed_integer() {
-        assert_eq!(r(7, 3).to_string(), "2.(3)");
+        assert_eq!(r(7, 3).to_string(), format!("2.{}", overline_digits("3")));
+    }
+
+    #[test]
+    fn display_repeating_negative() {
+        assert_eq!(r(-1, 3).to_string(), format!("-0.{}", overline_digits("3")));
     }
 
     #[test]
     fn display_terminating_eighth() {
         assert_eq!(r(1, 8).to_string(), "0.125");
+    }
+
+    #[test]
+    fn refeed_repeating_is_fraction_atom() {
+        assert_eq!(r(1, 3).to_refeed_string(18), "(1/3)");
+        assert_eq!(r(2, 3).to_refeed_string(18), "(2/3)");
+        assert_eq!(r(-1, 3).to_refeed_string(18), "(-1/3)");
+        assert_eq!(r(7, 3).to_refeed_string(18), "(7/3)");
+        assert_eq!(r(1, 6).to_refeed_string(18), "(1/6)");
+    }
+
+    #[test]
+    fn refeed_terminating_is_plain_decimal() {
+        assert_eq!(r(1, 2).to_refeed_string(18), "0.5");
+        assert_eq!(r(1, 8).to_refeed_string(18), "0.125");
+        assert_eq!(Number::from_i64(42).to_refeed_string(18), "42");
+    }
+
+    #[test]
+    fn refeed_has_no_overline_or_paren_cycle_marker() {
+        for n in [r(1, 3), r(1, 6), r(1, 7), r(7, 3), r(-1, 3)] {
+            let s = n.to_refeed_string(18);
+            assert!(!s.contains(OVERLINE), "refeed has overline: {s}");
+            assert!(!s.contains(".("), "refeed looks like old cycle mark: {s}");
+        }
     }
 
     #[test]

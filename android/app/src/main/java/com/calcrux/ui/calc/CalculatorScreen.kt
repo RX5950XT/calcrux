@@ -35,8 +35,14 @@ fun CalculatorScreen(
     val coroutineScope = rememberCoroutineScope()
     val exprScroll = rememberScrollState()
 
+    val mainText = when {
+        state.isResult && state.resultDisplay.isNotEmpty() -> state.resultDisplay
+        state.expression.isNotEmpty() -> state.expression
+        else -> "0"
+    }
+
     // Results stay at the start; expressions scroll to the end while typing.
-    LaunchedEffect(state.expression, state.isResult) {
+    LaunchedEffect(mainText, state.isResult) {
         if (state.isResult) {
             exprScroll.scrollTo(0)
         } else {
@@ -83,15 +89,19 @@ fun CalculatorScreen(
             verticalArrangement = Arrangement.Bottom,
             horizontalAlignment = Alignment.End,
         ) {
-            // Copy button row
-            if (state.expression.isNotEmpty()) {
+            // Copy button row — isResult copies what the user sees (display).
+            if (state.expression.isNotEmpty() || state.resultDisplay.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
                     IconButton(
                         onClick = {
-                            val text = if (state.preview.isNotEmpty()) state.preview else state.expression
+                            val text = when {
+                                state.isResult && state.resultDisplay.isNotEmpty() -> state.resultDisplay
+                                state.preview.isNotEmpty() -> state.preview
+                                else -> state.expression
+                            }
                             coroutineScope.launch {
                                 clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("result", text)))
                             }
@@ -109,7 +119,7 @@ fun CalculatorScreen(
             }
 
             Text(
-                text = state.expression.ifEmpty { "0" },
+                text = mainText,
                 style = MaterialTheme.typography.displaySmall,
                 fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.End,
@@ -119,7 +129,7 @@ fun CalculatorScreen(
                 maxLines = 3,
             )
             Spacer(Modifier.height(4.dp))
-            if (state.preview.isNotEmpty() && state.preview != state.expression) {
+            if (!state.isResult && state.preview.isNotEmpty() && state.preview != state.expression) {
                 Text(
                     text = state.preview,
                     style = MaterialTheme.typography.titleLarge,

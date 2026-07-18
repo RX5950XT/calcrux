@@ -57,8 +57,10 @@ android/app/build/outputs/apk/release/app-release.apk
 
 - 計算機四則運算輸入規則：`+ - × ÷` 不可連續重複；若上一個字元已是四則運算符，再點新的運算符時直接覆寫最後一個符號
 - 計算機按鍵點擊已加入 haptic feedback；單位換算與匯率 NumPad 共用相同震動
-- 循環小數顯示：`1/3` → `0.(3)`、`1/6` → `0.1(6)`；計算結果顯示區捲動至開頭
-- 此工作站目前 `AvailPageFile` 極低，Rust Android cross-compile 與 Gradle daemon 都可能因分頁檔不足失敗；若要重建 native library，優先確認系統分頁檔空間
+- 循環小數：**display** 用上橫線（`1/3` → `0.3̅`）；**refeed** 用 atom `(1/3)` 寫回 expression 續算。勿把 display 當 expression
+- FFI `calc_eval` 回傳 `CalcResult { display, refeed }`；改 API 後需 regenerate UniFFI + 重建 `.so`
+- 舊括號循環字串 `0.(3)` 會 parse error（防靜默錯算）；`2(3+4)` 隱式乘法仍合法
+- 此工作站 `AvailPageFile` 偏低時，Rust Android cross-compile 與 Gradle daemon 可能失敗；重建 native library 前先確認分頁檔空間
 
 ## 現況摘要
 

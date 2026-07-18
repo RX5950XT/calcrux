@@ -123,6 +123,13 @@ impl Parser {
                     lhs = Expr::BinOp(Box::new(lhs), BinOp::Div, Box::new(rhs));
                 }
                 // Implicit multiplication: `2π`, `2(x+1)`, `(a)(b)`.
+                // Harden: reject legacy repeating-decimal lookalikes like `0.(3)` /
+                // `0.1(6)` which would otherwise silently become `0×3` / `0.1×6`.
+                Some(Token::LParen) if self.is_legacy_repeating_decimal_lookalike(&lhs) => {
+                    return Err(EngineError::InvalidNumber(
+                        "legacy repeating-decimal notation is not supported".into(),
+                    ));
+                }
                 Some(Token::Number(_))
                 | Some(Token::Pi)
                 | Some(Token::Euler)
@@ -145,6 +152,25 @@ impl Parser {
             }
         }
         Ok(lhs)
+    }
+
+    /// `true` when `lhs` is a decimal number (optionally negated) and the next
+    /// tokens are `( <pure integer digits> )` — the old `0.(3)` / `0.1(6)` shape.
+    /// Does **not** match `2(3)` (no decimal point) or `0.5(2+3)` (ops inside).
+    fn is_legacy_repeating_decimal_lookalike(&self, lhs: &Expr) -> bool {
+        if !expr_is_decimal_number(lhs) {
+            return false;
+        }
+        let Some((Token::LParen, _)) = self.tokens.get(self.pos) else {
+            return false;
+        };
+        let Some((Token::Number(n), _)) = self.tokens.get(self.pos + 1) else {
+            return false;
+        };
+        if !is_pure_integer_digits(n) {
+            return false;
+        }
+        matches!(self.tokens.get(self.pos + 2), Some((Token::RParen, _)))
     }
 
     // Level 3 — leading unary negation.
@@ -254,6 +280,18 @@ pub fn parse(src: &str) -> Result<Expr> {
         return Err(EngineError::UnexpectedToken { pos: p.pos_span() });
     }
     Ok(expr)
+}
+
+fn expr_is_decimal_number(e: &Expr) -> bool {
+    match e {
+        Expr::Number(s) => s.contains('.'),
+        Expr::Negate(inner) => expr_is_decimal_number(inner),
+        _ => false,
+    }
+}
+
+fn is_pure_integer_digits(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
 #[cfg(test)]
@@ -377,6 +415,50 @@ mod tests {
             parse("2(3+4)").unwrap(),
             mul(num("2"), add(num("3"), num("4")))
         );
+    }
+
+    #[test]
+    fn implicit_mul_integer_paren_still_ok() {
+        assert_eq!(
+            parse("2(3)").unwrap(),
+            mul(num("2"), num("3"))
+        );
+    }
+
+    #[test]
+    fn implicit_mul_decimal_with_ops_in_paren_still_ok() {
+        assert_eq!(
+            parse("0.5(2+3)").unwrap(),
+            mul(num("0.5"), add(num("2"), num("3")))
+        );
+    }
+
+    #[test]
+    fn legacy_repeating_decimal_zero_dot_paren_is_error() {
+        assert!(matches!(
+            parse("0.(3)"),
+            Err(EngineError::InvalidNumber(_))
+        ));
+    }
+
+    #[test]
+    fn legacy_repeating_decimal_mixed_is_error() {
+        assert!(matches!(
+            parse("2.(3)"),
+            Err(EngineError::InvalidNumber(_))
+        ));
+        assert!(matches!(
+            parse("0.1(6)"),
+            Err(EngineError::InvalidNumber(_))
+        ));
+    }
+
+    #[test]
+    fn legacy_repeating_decimal_negative_is_error() {
+        assert!(matches!(
+            parse("-0.(3)"),
+            Err(EngineError::InvalidNumber(_))
+        ));
     }
 
     #[test]

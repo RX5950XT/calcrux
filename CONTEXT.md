@@ -2,30 +2,37 @@
 
 ## 版本
 
-- 最新發行：`v0.1.2`（versionCode 3）
+- 最新發行：`v0.1.3`（versionCode 4）
 
-## 最近完成（2026-06-29）
+## 最近完成（2026-07-19）
 
-### 循環小數與顯示
+### 循環小數誤算修正（P0）
 
-- Rust `format_rational`：循環小數改為括號標記（例 `1/3` → `0.(3)`、`1/6` → `0.1(6)`），不再展開 18 位。
-- 計算機：按 `=` 後 `isResult=true`，顯示區 `scrollTo(0)` 從開頭看結果；輸入運算式仍捲到尾端。
-- 單位換算 / 匯率：換算結果欄位水平捲動至開頭；輸入欄捲至尾端。
+**根因：** 結果格式化為 `0.(3)` 後寫回 expression，parser 隱式乘法解成 `0×3=0`。
 
-### 震動回饋
+**修正：**
 
-- `NumPad.kt` 共用元件已加入 `HapticFeedbackType.LongPress`，單位換算與匯率九宮格與計算機一致。
+1. **Display**：循環小數改上橫線（U+0305），例 `1/3` → `0.3̅`、`1/6` → `0.16̅`
+2. **Refeed**：循環有理數輸出 atom `(p/q)` / `(-p/q)`，保證續算優先序正確
+3. **FFI**：`calc_eval` → `CalcResult { display, refeed }`
+4. **Android**：`=` 後 expression=refeed、畫面=resultDisplay；digit/⌫/Func 覆寫；四則續接 refeed
+5. **Harden**：舊字串 `0.(3)` / `0.1(6)` 等改 **Error**，不再靜默錯算；保留 `2(3+4)`
 
-## 驗證
+### 驗證
 
 ```powershell
-cargo test --workspace                              # 145 tests OK
-cd android; .\gradlew.bat testDebugUnitTest         # OK
+cargo test --workspace
+# Android（需先 regenerate bindings + 重建 .so）
+cd android
+# 本機可用 host DLL 產 bindings：
+# cargo run -p calcrux-ffi --bin uniffi-bindgen -- generate --library target/debug/calcrux.dll --language kotlin --out-dir android/app/src/main/java/com/calcrux/generated
+.\gradlew.bat testDebugUnitTest
+.\gradlew.bat assembleDebug
 ```
-
-重建 native library 後需執行 `.\gradlew.bat generateUniFFIBindings`（若 FFI 有變更）。
 
 ## 注意
 
-- 工作站 `AvailPageFile` 偏低時，Rust Android cross-compile 可能失敗。
-- 循環小數格式僅適用 Rational 精確結果；`√2` 等無理數仍為有限有效數字。
+- `display` 不可當 expression refeed；copy 在 isResult 時複製 display（不保證可再算）
+- 工作站 pagefile 偏低時 cross-compile 可能失敗
+- 無理數（`√2`）仍為有限位小數
+- 勿提交：`jniLibs/*.so`、`generated/`、`*.log`、APK、`local.properties`

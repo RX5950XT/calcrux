@@ -593,4 +593,66 @@ mod tests {
         let err = Evaluator::default().eval_str("1/0").unwrap_err();
         assert_eq!(err, EngineError::DivisionByZero);
     }
+
+    // --- display / refeed safety -----------------------------------------
+
+    #[test]
+    fn refeed_round_trip_repeating_rationals() {
+        let e = Evaluator::default();
+        for src in ["1/3", "1/6", "1/7", "7/3", "-1/3", "1+1/3", "2/3", "1/8"] {
+            let n = e.eval_str(src).expect(src);
+            let refeed = n.to_refeed_string(18);
+            let again = e.eval_str(&refeed).unwrap_or_else(|err| {
+                panic!("refeed of {src:?} = {refeed:?} failed: {err}")
+            });
+            assert_eq!(n, again, "round-trip mismatch for {src} via {refeed}");
+        }
+    }
+
+    #[test]
+    fn refeed_chain_third_times_three() {
+        let e = Evaluator::default();
+        let third = e.eval_str("1/3").unwrap();
+        let chained = format!("{}*3", third.to_refeed_string(18));
+        assert_eq!(e.eval_str(&chained).unwrap(), Number::one());
+    }
+
+    #[test]
+    fn refeed_chain_two_thirds_squared() {
+        // Bare `2/3^2` would be 2/9; atom refeed must yield (2/3)^2 = 4/9.
+        let e = Evaluator::default();
+        let two_thirds = e.eval_str("2/3").unwrap();
+        let chained = format!("{}^2", two_thirds.to_refeed_string(18));
+        let expected = e.eval_str("(2/3)^2").unwrap();
+        assert_eq!(e.eval_str(&chained).unwrap(), expected);
+        assert_eq!(expected, e.eval_str("4/9").unwrap());
+    }
+
+    #[test]
+    fn refeed_chain_neg_third_squared() {
+        let e = Evaluator::default();
+        let n = e.eval_str("-1/3").unwrap();
+        let chained = format!("{}^2", n.to_refeed_string(18));
+        assert_eq!(e.eval_str(&chained).unwrap(), e.eval_str("1/9").unwrap());
+    }
+
+    #[test]
+    fn legacy_repeating_strings_do_not_eval_to_zero() {
+        let e = Evaluator::default();
+        for bad in ["0.(3)", "2.(3)", "0.1(6)", "-0.(3)"] {
+            let err = e.eval_str(bad).expect_err(bad);
+            assert!(
+                matches!(err, EngineError::InvalidNumber(_)),
+                "{bad} must error, got {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn display_third_uses_overline_not_parens() {
+        let n = eval("1/3");
+        let d = n.to_display_string(18);
+        assert!(!d.contains('('), "display must not use parens: {d}");
+        assert!(d.contains('\u{0305}'), "display must use overline: {d}");
+    }
 }

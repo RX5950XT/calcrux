@@ -1,5 +1,6 @@
 package com.calcrux.data
 
+import uniffi.calcrux.CalcResult
 import uniffi.calcrux.amortizeEqualPayment as rustAmortizeEqualPayment
 import uniffi.calcrux.amortizeEqualPrincipal as rustAmortizeEqualPrincipal
 import uniffi.calcrux.calcEval as rustCalcEval
@@ -10,7 +11,7 @@ import uniffi.calcrux.unitList as rustUnitList
 
 object RustBridge {
 
-    fun calcEval(expression: String, degreesMode: Boolean): String =
+    fun calcEval(expression: String, degreesMode: Boolean): CalcResult =
         rustCalcEval(expression, degreesMode)
 
     fun unitCategories(): List<String> =
