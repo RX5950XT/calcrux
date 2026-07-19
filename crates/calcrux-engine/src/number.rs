@@ -365,8 +365,10 @@ fn format_rational_display(r: &Rational, digits: usize) -> String {
 
     let (num, den) = frac.into_numerator_and_denominator();
     if is_terminating_denominator(&den) {
-        let bf = rational_to_bigfloat(r, digits.saturating_mul(4).max(DEFAULT_PREC));
-        return format_bigfloat(&bf, digits);
+        // Exact long-division — never route through BigFloat (which may emit
+        // 9.99…e-N for powers of ten and break the display formatter).
+        let _ = digits;
+        return format_terminating_rational(neg, &int_part, &num, &den);
     }
 
     let (prefix, repeat) = repeating_decimal_parts(&num, &den);
@@ -379,10 +381,23 @@ fn format_rational_refeed(r: &Rational, digits: usize) -> String {
         return i.to_string();
     }
 
-    // Terminating decimals refeed as plain decimals (no special markers).
+    // Terminating decimals refeed as plain decimals (exact, no BigFloat).
     if is_terminating_denominator(r.denominator_ref()) {
-        let bf = rational_to_bigfloat(r, digits.saturating_mul(4).max(DEFAULT_PREC));
-        return format_bigfloat(&bf, digits);
+        let _ = digits;
+        let neg = *r < Rational::ZERO;
+        let abs = r.abs();
+        let int_floor = abs.clone().floor();
+        let int_part = int_floor.to_string();
+        let frac = abs - Rational::from(int_floor);
+        if frac == Rational::ZERO {
+            return if neg {
+                format!("-{int_part}")
+            } else {
+                int_part
+            };
+        }
+        let (num, den) = frac.into_numerator_and_denominator();
+        return format_terminating_rational(neg, &int_part, &num, &den);
     }
 
     // Repeating: emit reduced fraction as a single atom so `^` / `!` / `%`
@@ -395,6 +410,40 @@ fn format_rational_refeed(r: &Rational, digits: usize) -> String {
     } else {
         format!("({num}/{den})")
     }
+}
+
+/// Exact decimal for a terminating fractional part `num/den` (0 ≤ num < den,
+/// den's prime factors ⊆ {2, 5}).
+fn format_terminating_rational(
+    neg: bool,
+    int_part: &str,
+    num: &Natural,
+    den: &Natural,
+) -> String {
+    let ten = Natural::from(10u32);
+    let mut rem = num.clone();
+    let mut frac_digits = String::new();
+    // Guaranteed to terminate; hard cap only as a safety net.
+    for _ in 0..10_000 {
+        if rem == Natural::ZERO {
+            break;
+        }
+        rem *= &ten;
+        let (q, r) = rem.div_mod(den.clone());
+        frac_digits.push(digit_char(u32::try_from(&q).unwrap_or(0)));
+        rem = r;
+    }
+
+    let mut out = String::new();
+    if neg {
+        out.push('-');
+    }
+    out.push_str(int_part);
+    if !frac_digits.is_empty() {
+        out.push('.');
+        out.push_str(&frac_digits);
+    }
+    out
 }
 
 fn format_bigfloat(f: &BigFloat, max_sig_digits: usize) -> String {
@@ -425,18 +474,28 @@ fn format_bigfloat(f: &BigFloat, max_sig_digits: usize) -> String {
         None => (mantissa_str.clone(), String::new()),
     };
     let mut digits: String = format!("{int_part}{frac_part}");
+    // Point sits after `int_part.len()` digits of `digits`, then scientific `exp`.
+    let mut new_point = int_part.len() as i64 + exp;
 
-    // Cap to `max_sig_digits` with banker's-ish rounding (round half to even).
-    if digits.len() > max_sig_digits {
-        digits = round_digits(&digits, max_sig_digits);
+    let keep = max_sig_digits.max(1);
+    // Cap to `keep` significant digits. Rounding 9.99… may yield `keep+1`
+    // digits (e.g. 999→1000); that carry must shift the decimal point.
+    //
+    // Bug history: the old check compared against the *pre-round* length, so
+    // a long 9.99…e-N mantissa rounded to 1.00… never shifted the point and
+    // displayed 0.01 as 0.001 / tan(45°)≈1 as 0.1.
+    if digits.len() > keep {
+        digits = round_digits(&digits, keep);
+        if digits.len() > keep {
+            new_point += (digits.len() - keep) as i64;
+        }
     }
 
-    let current_point = int_part.len() as i64;
-    let mut new_point = current_point + exp;
-    // Rounding may have prepended a leading '1' (e.g. 9.99 → 10.0); if the
-    // digit count grew, shift the decimal point right by one.
-    if digits.len() as i64 > (int_part.len() + frac_part.len()) as i64 {
-        new_point += 1;
+    // Snap underflow noise (e.g. sin(π)≈1e-77) to zero for display, while
+    // still showing intentional small values like 1e-20 with 18 digits.
+    // Threshold: more leading fractional zeros than keep+8.
+    if new_point <= 0 && (-new_point) > (keep as i64 + 8) {
+        return "0".to_string();
     }
 
     let mut out = String::new();
@@ -678,5 +737,53 @@ mod tests {
         let real = Number::Real(r.to_real(DEFAULT_PREC));
         // Our formatter must normalise "4.2e+1" → "42".
         assert_eq!(real.to_decimal_string(18), "42");
+    }
+
+    #[test]
+    fn display_powers_of_ten_fractions_exact() {
+        // P0 regression: BigFloat emits 9.99…e-N for 1/100; old formatter
+        // showed 0.001 instead of 0.01 (and refeed poisoned continuations).
+        assert_eq!(r(1, 100).to_display_string(18), "0.01");
+        assert_eq!(r(1, 100).to_refeed_string(18), "0.01");
+        assert_eq!(r(1, 1000).to_display_string(18), "0.001");
+        assert_eq!(r(1, 1000).to_refeed_string(18), "0.001");
+        assert_eq!(Number::parse_decimal("0.01").unwrap().to_display_string(18), "0.01");
+        assert_eq!(Number::parse_decimal("1e-2").unwrap().to_display_string(18), "0.01");
+        assert_eq!(Number::parse_decimal("0.001").unwrap().to_display_string(18), "0.001");
+    }
+
+    #[test]
+    fn display_real_near_one_from_all_nines_mantissa() {
+        // tan(45°)-style value: BigFloat ≈ 9.99…e-1 must display as 1, not 0.1.
+        let f = rational_to_bigfloat(&Rational::from_signeds(1, 1), DEFAULT_PREC);
+        // Force the 9.99…e-1 path via a value just under 1 at high prec, then
+        // format with few digits so rounding carries.
+        let almost_one = {
+            // 1 - 1e-80 style is hard; use division that yields 9.99…e-1 raw.
+            let n = Number::parse_decimal("0.999999999999999999999").unwrap();
+            Number::Real(n.to_real(DEFAULT_PREC))
+        };
+        let d = almost_one.to_display_string(18);
+        // Either exact 1 after round, or a 0.999… string — never 0.1 / 0.09…
+        assert!(
+            d == "1" || d.starts_with("0.999"),
+            "near-one must not collapse to 0.1-ish, got {d}"
+        );
+        let _ = f;
+    }
+
+    #[test]
+    fn format_bigfloat_all_nines_carry_shifts_point() {
+        // Simulate the raw path: format a Real that is 9.99…e-1 at working prec.
+        // cos/sin ratio ≈ 1 is the classic case; construct via Real of 1-eps.
+        let one = Number::from_i64(1).to_real(DEFAULT_PREC);
+        assert_eq!(format_bigfloat(&one, 18), "1");
+
+        // 0.01 via Real (rational→float) must still land on 0.01 after round.
+        let hundredth = r(1, 100).to_real(DEFAULT_PREC);
+        assert_eq!(format_bigfloat(&hundredth, 18), "0.01");
+
+        let thousandth = r(1, 1000).to_real(DEFAULT_PREC);
+        assert_eq!(format_bigfloat(&thousandth, 18), "0.001");
     }
 }

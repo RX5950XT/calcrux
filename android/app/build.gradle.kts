@@ -18,8 +18,8 @@ android {
         applicationId = "com.calcrux"
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.1.3"
+        versionCode = 5
+        versionName = "0.1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Filter to the four live ABIs. Prevents dead platforms (mips, mips64,

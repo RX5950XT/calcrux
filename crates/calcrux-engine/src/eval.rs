@@ -47,28 +47,53 @@ impl Evaluator {
 
             Expr::Negate(e) => Ok(self.eval(e)?.neg()),
 
-            Expr::BinOp(l, op, r) => {
-                let lv = self.eval(l)?;
-                let rv = self.eval(r)?;
-                match op {
-                    BinOp::Add => Ok(lv.add(rv, self.precision)),
-                    BinOp::Sub => Ok(lv.sub(rv, self.precision)),
-                    BinOp::Mul => Ok(lv.mul(rv, self.precision)),
-                    BinOp::Div => lv.div(rv, self.precision),
-                }
-            }
+            Expr::BinOp(l, op, r) => self.eval_binop(l, *op, r),
 
             Expr::Pow(base, exp) => self.eval_pow(base, exp),
 
             Expr::Factorial(e) => self.eval_factorial(e),
 
             Expr::Percent(e) => {
-                // Percent: x% = x / 100
+                // Bare / postfix percent: x% = x / 100
                 let v = self.eval(e)?;
                 v.div(Number::from_i64(100), self.precision)
             }
 
             Expr::UnaryFn(func, arg) => self.eval_fn(*func, arg),
+        }
+    }
+
+    /// Binary ops, with phone-calculator percent forms:
+    /// `a + b%` → `a × (1 + b/100)`, `a - b%` → `a × (1 − b/100)`,
+    /// `a × b%` → `a × (b/100)`, `a ÷ b%` → `a ÷ (b/100)`.
+    fn eval_binop(&self, l: &Expr, op: BinOp, r: &Expr) -> Result<Number> {
+        if let Expr::Percent(inner) = r {
+            let base = self.eval(l)?;
+            let pct = self.eval(inner)?; // the number before `%`
+            let hundred = Number::from_i64(100);
+            let fraction = pct.div(hundred, self.precision)?;
+            return match op {
+                BinOp::Add => {
+                    // base + base*(pct/100)
+                    let delta = base.clone().mul(fraction, self.precision);
+                    Ok(base.add(delta, self.precision))
+                }
+                BinOp::Sub => {
+                    let delta = base.clone().mul(fraction, self.precision);
+                    Ok(base.sub(delta, self.precision))
+                }
+                BinOp::Mul => Ok(base.mul(fraction, self.precision)),
+                BinOp::Div => base.div(fraction, self.precision),
+            };
+        }
+
+        let lv = self.eval(l)?;
+        let rv = self.eval(r)?;
+        match op {
+            BinOp::Add => Ok(lv.add(rv, self.precision)),
+            BinOp::Sub => Ok(lv.sub(rv, self.precision)),
+            BinOp::Mul => Ok(lv.mul(rv, self.precision)),
+            BinOp::Div => lv.div(rv, self.precision),
         }
     }
 
@@ -83,6 +108,17 @@ impl Evaluator {
     fn eval_pow(&self, base_expr: &Expr, exp_expr: &Expr) -> Result<Number> {
         let base = self.eval(base_expr)?;
         let exp = self.eval(exp_expr)?;
+        let p = self.precision;
+
+        // 0^e: positive → 0, zero → 1 (convention), negative → division by zero.
+        if base.is_zero() {
+            return match exp_sign(&exp) {
+                ExpSign::Positive => Ok(Number::zero()),
+                ExpSign::Zero => Ok(Number::one()),
+                ExpSign::Negative => Err(EngineError::DivisionByZero),
+                ExpSign::Unknown => Err(EngineError::Domain("undefined power of zero")),
+            };
+        }
 
         // Try integer exponent fast-path (stays Rational).
         if let Number::Rational(ref r) = exp {
@@ -94,17 +130,16 @@ impl Evaluator {
             }
         }
 
-        // General case: b^e = exp(e * ln(b)).
-        let p = self.precision;
         let base_f = base.to_real(p);
         let exp_f = exp.to_real(p);
 
-        if base_f.is_negative() && !is_integer_bigfloat(&exp_f, p) {
-            return Err(EngineError::Domain("base must be non-negative for non-integer exponent"));
+        // Negative base: only defined for integer exp (handled above) or
+        // rational exp with odd denominator (real q-th root exists).
+        if base_f.is_negative() {
+            return self.eval_pow_negative_base(base_f, &exp, exp_f, p);
         }
 
         // Rational exponent optimisation: x^(n/d) via integer power then n-th root.
-        // Avoids the slow BigFloat::pow(BigFloat) path for common cases.
         let result = if let Number::Rational(ref r) = exp {
             let n = r.numerator_ref();
             let d = r.denominator_ref();
@@ -127,6 +162,56 @@ impl Evaluator {
             with_consts(|cc| product.exp(p, ROUND, cc))
         };
         Ok(Number::Real(result))
+    }
+
+    /// `base < 0`, non-integer exponent path.
+    fn eval_pow_negative_base(
+        &self,
+        base_f: BigFloat,
+        exp: &Number,
+        exp_f: BigFloat,
+        p: usize,
+    ) -> Result<Number> {
+        let Number::Rational(r) = exp else {
+            return Err(EngineError::Domain(
+                "base must be non-negative for non-rational exponent",
+            ));
+        };
+        if is_integer_bigfloat(&exp_f, p) {
+            // Large integer that missed i64 fast-path.
+            let result = with_consts(|cc| base_f.pow(&exp_f, p, ROUND, cc));
+            return Ok(Number::Real(result));
+        }
+
+        let num = r.numerator_ref();
+        let den = r.denominator_ref();
+        // Reduced p/q: real q-th root of negative exists iff q is odd.
+        if !natural_is_odd(den) {
+            return Err(EngineError::Domain(
+                "base must be non-negative for even-root exponent",
+            ));
+        }
+
+        let abs_base = base_f.abs();
+        let abs_exp = exp_f.abs();
+        // |base|^|exp| via exp(|exp| * ln(|base|))
+        let ln_abs = with_consts(|cc| abs_base.ln(p, ROUND, cc));
+        let product = abs_exp.mul(&ln_abs, p, ROUND);
+        let mut mag = with_consts(|cc| product.exp(p, ROUND, cc));
+
+        // x^(a/b) for x<0, b odd: sign is negative iff numerator a is odd.
+        if natural_is_odd(num) {
+            mag = mag.neg();
+        }
+        // Negative exponent → reciprocal (sign already applied).
+        if *r < malachite::Rational::from(0i64) {
+            if mag.is_zero() {
+                return Err(EngineError::DivisionByZero);
+            }
+            let one = BigFloat::from_i128(1, p);
+            mag = one.div(&mag, p, ROUND);
+        }
+        Ok(Number::Real(mag))
     }
 
     // --- factorial -------------------------------------------------------
@@ -192,7 +277,9 @@ impl Evaluator {
                     UnaryFn::Tan => {
                         let s = with_consts(|cc| angle.sin(p, ROUND, cc));
                         let c = with_consts(|cc| angle.cos(p, ROUND, cc));
-                        if c.is_zero() {
+                        // Near odd multiples of π/2, cos underflows to ~1e-76 rather
+                        // than exact 0 — treat as a pole.
+                        if cos_near_zero(&c, p) {
                             return Err(EngineError::Domain("tan undefined at this angle"));
                         }
                         s.div(&c, p, ROUND)
@@ -298,6 +385,57 @@ fn is_integer_bigfloat(f: &BigFloat, prec: usize) -> bool {
     let floored = f.floor();
     let diff = f.sub(&floored, prec, ROUND);
     diff.is_zero()
+}
+
+/// `|cos|` smaller than ~10^(−prec/4) counts as a tan pole (covers π/2 noise).
+fn cos_near_zero(c: &BigFloat, prec: usize) -> bool {
+    if c.is_zero() {
+        return true;
+    }
+    let abs = c.abs();
+    // 10^(−prec/4): at 256-bit ≈ 1e-19 — well above cos(π/2)≈1e-77 noise,
+    // well below legitimate tan(89.999°) still useful on a calculator.
+    let exp = -((prec / 4) as i32).max(12);
+    let thresh = BigFloat::from_f64(10f64.powi(exp), prec);
+    matches!(abs.cmp(&thresh), Some(n) if n <= 0)
+}
+
+fn natural_is_odd(n: &malachite::Natural) -> bool {
+    // Least significant bit of an odd natural is 1.
+    n.to_limbs_asc().first().map(|w| w & 1 == 1).unwrap_or(false)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ExpSign {
+    Positive,
+    Zero,
+    Negative,
+    Unknown,
+}
+
+fn exp_sign(exp: &Number) -> ExpSign {
+    match exp {
+        Number::Rational(r) => {
+            if *r == malachite::Rational::from(0i64) {
+                ExpSign::Zero
+            } else if *r > malachite::Rational::from(0i64) {
+                ExpSign::Positive
+            } else {
+                ExpSign::Negative
+            }
+        }
+        Number::Real(f) => {
+            if f.is_nan() || f.is_inf() {
+                ExpSign::Unknown
+            } else if f.is_zero() {
+                ExpSign::Zero
+            } else if f.is_negative() {
+                ExpSign::Negative
+            } else {
+                ExpSign::Positive
+            }
+        }
+    }
 }
 
 fn real_to_i64(f: &BigFloat) -> Result<i64> {
@@ -483,6 +621,73 @@ mod tests {
         assert_eq!(eval("50%"), Number::parse_decimal("0.5").unwrap());
     }
 
+    #[test]
+    fn percent_binary_phone_semantics() {
+        // a ± b% → a × (1 ± b/100)
+        assert_eq!(eval("100+10%"), Number::from_i64(110));
+        assert_eq!(eval("100-10%"), Number::from_i64(90));
+        assert_eq!(eval("200*50%"), Number::from_i64(100));
+        assert_eq!(eval("200/50%"), Number::from_i64(400));
+        assert_eq!(eval("50+50%"), Number::parse_decimal("75").unwrap());
+        // Chained: (1000+5%)+5% = 1050+5% = 1102.5
+        assert_eq!(eval("1000+5%+5%"), Number::parse_decimal("1102.5").unwrap());
+    }
+
+    #[test]
+    fn zero_to_negative_power_is_div_zero() {
+        let err = Evaluator::default().eval_str("0^-1").unwrap_err();
+        assert_eq!(err, EngineError::DivisionByZero);
+        let err = Evaluator::default().eval_str("0^(-2)").unwrap_err();
+        assert_eq!(err, EngineError::DivisionByZero);
+    }
+
+    #[test]
+    fn zero_to_positive_is_zero() {
+        assert_eq!(eval("0^5"), Number::zero());
+    }
+
+    #[test]
+    fn negative_base_odd_root() {
+        let r = eval("(-8)^(1/3)");
+        approx_eq(&r, &Number::from_i64(-2), "1e-50");
+        let r = eval("(-8)^(2/3)");
+        approx_eq(&r, &Number::from_i64(4), "1e-50");
+        let r = eval("(-32)^(1/5)");
+        approx_eq(&r, &Number::from_i64(-2), "1e-40");
+    }
+
+    #[test]
+    fn negative_base_even_root_errors() {
+        let err = Evaluator::default().eval_str("(-8)^(1/2)").unwrap_err();
+        assert!(matches!(err, EngineError::Domain(_)));
+        let err = Evaluator::default().eval_str("(-1)^0.5").unwrap_err();
+        assert!(matches!(err, EngineError::Domain(_)));
+    }
+
+    #[test]
+    fn tan_pole_errors() {
+        let err = Evaluator::new(AngleMode::Degrees)
+            .eval_str("tan(90)")
+            .unwrap_err();
+        assert!(matches!(err, EngineError::Domain(_)));
+        let err = Evaluator::default().eval_str("tan(π/2)").unwrap_err();
+        assert!(matches!(err, EngineError::Domain(_)));
+    }
+
+    #[test]
+    fn sin_pi_displays_as_zero() {
+        let d = eval("sin(π)").to_display_string(18);
+        assert_eq!(d, "0", "trig underflow must snap for display, got {d}");
+        let d = eval("cos(π/2)").to_display_string(18);
+        assert_eq!(d, "0", "cos(π/2) display must be 0, got {d}");
+    }
+
+    #[test]
+    fn number_juxtaposition_does_not_eval() {
+        assert!(Evaluator::default().eval_str("1..2").is_err());
+        assert!(Evaluator::default().eval_str(".5.5").is_err());
+    }
+
     // --- sqrt ------------------------------------------------------------
 
     #[test]
@@ -654,5 +859,30 @@ mod tests {
         let d = n.to_display_string(18);
         assert!(!d.contains('('), "display must not use parens: {d}");
         assert!(d.contains('\u{0305}'), "display must use overline: {d}");
+    }
+
+    // --- P0 display / magnitude regressions --------------------------------
+
+    #[test]
+    fn display_hundredth_not_thousandth() {
+        assert_eq!(eval("0.01").to_display_string(18), "0.01");
+        assert_eq!(eval("1/100").to_display_string(18), "0.01");
+        assert_eq!(eval("1e-2").to_display_string(18), "0.01");
+        assert_eq!(eval("0.1^2").to_display_string(18), "0.01");
+        assert_eq!(eval("0.1^2").to_refeed_string(18), "0.01");
+    }
+
+    #[test]
+    fn tan_45_deg_is_one_not_point_one() {
+        let r = eval_deg("tan(45)");
+        approx_eq(&r, &Number::one(), "1e-50");
+        assert_eq!(r.to_display_string(18), "1");
+    }
+
+    #[test]
+    fn sin_over_cos_45_deg_displays_one() {
+        let r = eval_deg("sin(45)/cos(45)");
+        approx_eq(&r, &Number::one(), "1e-50");
+        assert_eq!(r.to_display_string(18), "1");
     }
 }

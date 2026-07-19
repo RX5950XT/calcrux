@@ -130,6 +130,14 @@ impl Parser {
                         "legacy repeating-decimal notation is not supported".into(),
                     ));
                 }
+                // Reject bare number×number juxtaposition: `1..2` → `1.` × `.2`,
+                // `.5.5` → `.5` × `.5`, `2 3` → `2` × `3` — all silent typos.
+                // Still allow `2π`, `2(3)`, `2sin(0)`, `(2)(3)`, etc.
+                Some(Token::Number(_)) if expr_is_bare_number(&lhs) => {
+                    return Err(EngineError::InvalidNumber(
+                        "ambiguous number juxtaposition (missing operator?)".into(),
+                    ));
+                }
                 Some(Token::Number(_))
                 | Some(Token::Pi)
                 | Some(Token::Euler)
@@ -286,6 +294,15 @@ fn expr_is_decimal_number(e: &Expr) -> bool {
     match e {
         Expr::Number(s) => s.contains('.'),
         Expr::Negate(inner) => expr_is_decimal_number(inner),
+        _ => false,
+    }
+}
+
+/// True for a numeric literal, optionally with unary minuses (`-3`, `--1.5`).
+fn expr_is_bare_number(e: &Expr) -> bool {
+    match e {
+        Expr::Number(_) => true,
+        Expr::Negate(inner) => expr_is_bare_number(inner),
         _ => false,
     }
 }
@@ -459,6 +476,29 @@ mod tests {
             parse("-0.(3)"),
             Err(EngineError::InvalidNumber(_))
         ));
+    }
+
+    #[test]
+    fn number_juxtaposition_is_error() {
+        // Typos that used to silently multiply.
+        assert!(matches!(parse("1..2"), Err(EngineError::InvalidNumber(_))));
+        assert!(matches!(parse(".5.5"), Err(EngineError::InvalidNumber(_))));
+        assert!(matches!(parse("2 3"), Err(EngineError::InvalidNumber(_))));
+        assert!(matches!(parse("-1. .2"), Err(EngineError::InvalidNumber(_))));
+    }
+
+    #[test]
+    fn implicit_mul_non_number_still_ok() {
+        assert_eq!(parse("2π").unwrap(), mul(num("2"), Expr::Pi));
+        assert_eq!(parse("2(3)").unwrap(), mul(num("2"), num("3")));
+        assert_eq!(
+            parse("(2)(3)").unwrap(),
+            mul(num("2"), num("3"))
+        );
+        assert_eq!(
+            parse("π2").unwrap(),
+            mul(Expr::Pi, num("2"))
+        );
     }
 
     #[test]
