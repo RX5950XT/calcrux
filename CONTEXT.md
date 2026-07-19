@@ -2,7 +2,8 @@
 
 ## 版本
 
-- 最新發行目標：`v0.1.4`（versionCode 5）
+- 最新發行：`v0.1.4`（versionCode 5）
+- Release：https://github.com/RX5950XT/calcrux/releases/tag/v0.1.4
 
 ## 最近完成（2026-07-19）
 
