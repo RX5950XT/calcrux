@@ -11,7 +11,7 @@
 //! that are either:
 //!
 //! - **Ratio** – a constant arithmetic expression (`"10000/254"`).
-//!   `to_value = from_value × ratio` (base→unit direction).
+//!   `to_value = from_value × ratio`; stored as `unit → base` (1 unit = ratio base).
 //! - **Formula** – an expression string containing `x` as the input variable
 //!   (`"1.8*(x)+32"`).  Used for non-linear conversions (temperature, time).
 //!
@@ -22,8 +22,8 @@
 //! To convert **A → B** the converter:
 //! 1. Checks for a direct `(A, B)` rule.
 //! 2. Otherwise chains `A → base` then `base → B`.
-//!    For the `A → base` leg, if only the inverse `base → A` (ratio) is stored
-//!    the ratio is inverted (`1 / r`).
+//!    For either leg, if only the inverse ratio rule is stored it is inverted
+//!    (`1 / r`), so linear units are listed once as `unit → base`.
 
 use std::collections::HashMap;
 
@@ -191,12 +191,30 @@ fn convert_impl(cat: &CategoryData, from: &str, to: &str, value: f64) -> Result<
         return Ok(in_base);
     }
 
-    let key = (base.to_string(), to.to_string());
-    let rule = cat.rules.get(&key).ok_or_else(|| UnitError::NoPath {
-        from: from.to_string(),
+    from_base(cat, to, in_base)
+}
+
+/// Convert base → `to`.
+fn from_base(cat: &CategoryData, to: &str, value: f64) -> Result<f64, UnitError> {
+    let base = &cat.base;
+
+    // Direct (base → to) rule.
+    if let Some(rule) = cat.rules.get(&(base.to_string(), to.to_string())) {
+        return apply_rule(rule, value);
+    }
+
+    // Invert stored (to → base) ratio rule.
+    if let Some(Rule::Ratio(r)) = cat.rules.get(&(to.to_string(), base.to_string())) {
+        if *r == 0.0 || r.is_nan() {
+            return Err(UnitError::Eval("ratio is zero or NaN".into()));
+        }
+        return Ok(value / r);
+    }
+
+    Err(UnitError::NoPath {
+        from: base.to_string(),
         to: to.to_string(),
-    })?;
-    apply_rule(rule, in_base)
+    })
 }
 
 /// Convert `from` → base.
@@ -480,5 +498,28 @@ mod tests {
         // -40°C = -40°F (the crossover point)
         let r = c.convert("temperature", "C", "F", -40.0).unwrap();
         assert!(approx(r, -40.0, 1e-8));
+    }
+
+    #[test]
+    fn every_unit_round_trips_through_base() {
+        let c = conv();
+        for cat in c.categories() {
+            let base = c.categories[cat].base.clone();
+            for unit in c.units(cat).unwrap() {
+                let there = c.convert(cat, unit, &base, 7.0).unwrap();
+                assert!(there.is_finite(), "{cat}/{unit} → {there}");
+                let back = c.convert(cat, &base, unit, there).unwrap();
+                assert!(approx(back, 7.0, 1e-9), "{cat}/{unit}: {back}");
+            }
+        }
+    }
+
+    #[test]
+    fn exact_definitions() {
+        let c = conv();
+        assert!(approx(c.convert("volume", "cu.af", "cu.m", 1.0).unwrap(), 1233.48183754752, 1e-12));
+        assert!(approx(c.convert("weight", "st", "lb", 1.0).unwrap(), 2000.0, 1e-12));
+        assert!(approx(c.convert("temperature", "R", "F", 491.67).unwrap(), 32.0, 1e-9));
+        assert!(approx(c.convert("length", "pc", "ly", 1.0).unwrap(), 3.261563777, 1e-9));
     }
 }

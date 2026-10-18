@@ -15,3 +15,7 @@ local.properties
 # IDE
 *.iml
 .idea/
+
+# Play upload signing (never commit)
+keystore.properties
+*.jks

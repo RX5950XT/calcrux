@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Themed icon (Android 13+): glyphs only, since the system tints by alpha. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#FFFFFF" android:pathData="M31,36 H45 V40 H31 Z M36,31 H40 V45 H36 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M63,36 H77 V40 H63 Z" />
+    <group android:pivotX="38" android:pivotY="70" android:rotation="45">
+        <path android:fillColor="#FFFFFF" android:pathData="M31,68 H45 V72 H31 Z M36,63 H40 V77 H36 Z" />
+    </group>
+    <path android:fillColor="#FFFFFF" android:pathData="M63,64 H77 V68 H63 Z M63,72 H77 V76 H63 Z" />
+</vector>

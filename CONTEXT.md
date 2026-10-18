@@ -2,8 +2,8 @@
 
 ## 版本
 
-- 最新發行：`v0.1.5`（versionCode 6）
-- Release：https://github.com/RX5950XT/calcrux/releases/tag/v0.1.5
+- 最新發行：`v0.1.6`（versionCode 7）
+- Release：https://github.com/RX5950XT/calcrux/releases/tag/v0.1.6
 
 ## 最近完成（2026-10-18）
 

@@ -1,4 +1,5 @@
 import com.android.build.gradle.internal.tasks.factory.dependsOn
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -10,16 +11,21 @@ plugins {
     id("com.github.willir.rust.cargo-ndk-android") version "0.3.4"
 }
 
+// Play upload key: android/keystore.properties (gitignored) → storeFile/storePassword/keyAlias/keyPassword
+val keystoreProps = Properties().apply {
+    rootProject.file("keystore.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
 android {
     namespace = "com.calcrux"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.calcrux"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 6
-        versionName = "0.1.5"
+        targetSdk = 36
+        versionCode = 7
+        versionName = "0.1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Filter to the four live ABIs. Prevents dead platforms (mips, mips64,
@@ -29,14 +35,24 @@ android {
         }
     }
 
+    signingConfigs {
+        if (!keystoreProps.isEmpty) create("release") {
+            storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+            storePassword = keystoreProps.getProperty("storePassword")
+            keyAlias = keystoreProps.getProperty("keyAlias")
+            keyPassword = keystoreProps.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true      // R8: shrinks + obfuscates DEX (65MB → ~9MB)
             isShrinkResources = true    // AAPT2: removes unused drawables / strings
-            // Sign with debug keystore for local testing.
-            // Replace with a real keystore (storeFile/storePassword/keyAlias/keyPassword) before Play Store.
+            // Upload key when keystore.properties exists; debug key otherwise (local testing only).
             @Suppress("UNCHECKED_CAST")
-            signingConfig = signingConfigs.getByName("debug") as com.android.build.api.dsl.ApkSigningConfig
+            signingConfig = signingConfigs.getByName(
+                if (keystoreProps.isEmpty) "debug" else "release"
+            ) as com.android.build.api.dsl.ApkSigningConfig
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

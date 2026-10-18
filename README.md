@@ -151,4 +151,4 @@ signingConfigs {
 
 Apache-2.0，詳見 [LICENSE](LICENSE)。
 
-`crates/calcrux-units/data/units.json` 的單位資料衍生自 MIUI Calculator 的 assets，同為 Apache 授權。
+`crates/calcrux-units/data/units.json` 的單位資料依公開標準定義自行整理（SI、NIST SP 811、IAU 2012），每個類別的 `source` 欄位標明依據。
