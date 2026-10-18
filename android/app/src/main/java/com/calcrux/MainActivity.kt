@@ -16,7 +16,6 @@ import com.calcrux.ui.calc.CalculatorScreen
 import com.calcrux.ui.calc.CalculatorViewModel
 import com.calcrux.ui.convert.ConvertScreen
 import com.calcrux.ui.fx.FxScreen
-import com.calcrux.ui.history.HistoryScreen
 import com.calcrux.ui.loan.LoanScreen
 import com.calcrux.ui.theme.CalcRuxTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -40,7 +39,6 @@ fun CalcRuxNavHost() {
     val mainTabs = listOf(
         stringResource(R.string.tab_calculator),
         stringResource(R.string.tab_convert),
-        stringResource(R.string.tab_history),
     )
     val mainPagerState = rememberPagerState { mainTabs.size }
     val scope = rememberCoroutineScope()
@@ -73,13 +71,7 @@ fun CalcRuxNavHost() {
             ) { page ->
                 when (page) {
                     0 -> CalculatorScreen(vm = calcVm)
-                    1 -> ConvertLoanPager()
-                    2 -> HistoryScreen(
-                        onRestoreExpression = { expr ->
-                            calcVm.setExpression(expr)
-                            scope.launch { mainPagerState.scrollToPage(0) }
-                        },
-                    )
+                    1 -> ConvertLoanPager(visible = mainPagerState.currentPage == 1)
                     else -> Box(Modifier.fillMaxSize())
                 }
             }
@@ -91,7 +83,7 @@ fun CalcRuxNavHost() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConvertLoanPager() {
+private fun ConvertLoanPager(visible: Boolean) {
     val subTabs = listOf(
         stringResource(R.string.tab_unit_convert),
         stringResource(R.string.tab_fx),
@@ -120,7 +112,7 @@ private fun ConvertLoanPager() {
         ) { page ->
             when (page) {
                 0 -> ConvertScreen()
-                1 -> FxScreen()
+                1 -> FxScreen(visible = visible && subPagerState.currentPage == 1)
                 2 -> LoanScreen()
                 else -> Box(Modifier.fillMaxSize())
             }

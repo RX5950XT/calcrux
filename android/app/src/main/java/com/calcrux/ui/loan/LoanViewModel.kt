@@ -27,16 +27,25 @@ class LoanViewModel @Inject constructor() : ViewModel() {
     fun onPrincipal(v: String) = _state.update { it.copy(principalText = v, error = "") }
     fun onRate(v: String)      = _state.update { it.copy(rateText = v, error = "") }
     fun onMonths(v: String)    = _state.update { it.copy(monthsText = v, error = "") }
-    fun selectMethod(isEqual: Boolean) = _state.update { it.copy(methodIsEqualPayment = isEqual, schedule = null) }
+    fun selectMethod(isEqual: Boolean) {
+        val recalc = _state.value.schedule != null
+        _state.update { it.copy(methodIsEqualPayment = isEqual, schedule = null) }
+        if (recalc) calculate()
+    }
 
     fun calculate() {
         val s = _state.value
-        val principal = s.principalText.toDoubleOrNull()
-        val rate      = s.rateText.toDoubleOrNull()
-        val months    = s.monthsText.toUIntOrNull()
+        val principal = s.principalText.toDoubleOrNull()?.takeIf { it.isFinite() && it > 0 }
+        val rate      = s.rateText.toDoubleOrNull()?.takeIf { it.isFinite() && it >= 0 }
+        val months    = s.monthsText.toIntOrNull()?.takeIf { it in 1..MAX_MONTHS }?.toUInt()
 
         if (principal == null || rate == null || months == null) {
-            _state.update { it.copy(error = "Please enter valid numbers") }
+            val message = when {
+                principal == null -> "請輸入大於 0 的貸款金額"
+                rate == null -> "年利率需為 0 以上的數字"
+                else -> "期數需為 1–$MAX_MONTHS 個月"
+            }
+            _state.update { it.copy(schedule = null, error = message) }
             return
         }
 
@@ -47,7 +56,10 @@ class LoanViewModel @Inject constructor() : ViewModel() {
                 RustBridge.amortizeEqualPrincipal(principal, rate, months)
             _state.update { it.copy(schedule = sched, error = "") }
         } catch (e: Exception) {
-            _state.update { it.copy(schedule = null, error = e.message?.take(80) ?: "Error") }
+            _state.update { it.copy(schedule = null, error = "無法計算，請檢查輸入") }
         }
     }
 }
+
+/** Mirrors `calcrux_loan::MAX_MONTHS` (100 years). */
+private const val MAX_MONTHS = 1200

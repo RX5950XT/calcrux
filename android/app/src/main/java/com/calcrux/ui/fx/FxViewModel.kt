@@ -6,13 +6,19 @@ import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.calcrux.data.FxService
+import com.calcrux.ui.shared.appendDecimal
+import com.calcrux.ui.shared.appendDigit
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.math.MathContext
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.math.RoundingMode
 import javax.inject.Inject
 
@@ -23,12 +29,14 @@ data class FxState(
     val rates: Map<String, Double> = FALLBACK_RATES,
     val codes: List<String> = emptyList(),
     val pinnedCodes: Set<String> = DEFAULT_PINS,
-    val fromCode: String = "USD",
-    val toCode: String = "TWD",
-    val fromText: String = "",
-    val toText: String = "",
+    /** Currencies shown as rows; any row can be the input. */
+    val rows: List<String> = DEFAULT_ROWS,
+    val activeIndex: Int = 0,
+    val inputText: String = "",
+    /** Display value per row; the active row holds [inputText]. */
+    val values: List<String> = DEFAULT_ROWS.map { "" },
     val status: FxStatus = FxStatus.Loading,
-    val lastUpdated: String = "內建匯率",
+    val lastUpdated: String = BUILT_IN_LABEL,
     val error: String = "",
 )
 
@@ -44,13 +52,21 @@ class FxViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(
         loadPins().let { pins ->
+            val (rates, date) = loadCachedRates() ?: (FALLBACK_RATES to BUILT_IN_LABEL)
+            val rows = loadRows(rates.keys)
             FxState(
+                rates = rates,
+                lastUpdated = date,
                 pinnedCodes = pins,
-                codes = sortedCodes(FALLBACK_RATES.keys.toSet(), pins),
+                codes = sortedCodes(rates.keys, pins),
+                rows = rows,
+                values = rows.map { "" },
             )
         }
     )
     val state = _state.asStateFlow()
+
+    private var lastFetchMs = 0L
 
     init {
         refresh()
@@ -61,6 +77,31 @@ class FxViewModel @Inject constructor(
 
     private fun savePins(pins: Set<String>) {
         prefs.edit().putStringSet(KEY_PINS, pins).apply()
+    }
+
+    private fun loadRows(known: Set<String>): List<String> =
+        prefs.getString(KEY_ROWS, null)?.split(',')?.filter { it in known }?.distinct()
+            ?.takeIf { it.isNotEmpty() } ?: DEFAULT_ROWS
+
+    private fun saveRows(rows: List<String>) {
+        prefs.edit().putString(KEY_ROWS, rows.joinToString(",")).apply()
+    }
+
+    /** Last successful download, so offline starts don't fall back to 2024 rates. */
+    private fun loadCachedRates(): Pair<Map<String, Double>, String>? {
+        val date = prefs.getString(KEY_RATES_DATE, null) ?: return null
+        val cached = prefs.getString(KEY_RATES, null).orEmpty().split(',').mapNotNull { entry ->
+            val (code, rate) = entry.split('=').takeIf { it.size == 2 } ?: return@mapNotNull null
+            rate.toDoubleOrNull()?.takeIf(::isValidRate)?.let { code to it }
+        }.toMap()
+        return if (cached.isEmpty()) null else (FALLBACK_RATES + cached) to date
+    }
+
+    private fun saveRates(rates: Map<String, Double>, date: String) {
+        prefs.edit()
+            .putString(KEY_RATES, rates.entries.joinToString(",") { "${it.key}=${it.value}" })
+            .putString(KEY_RATES_DATE, date)
+            .apply()
     }
 
     fun togglePin(code: String) {
@@ -75,100 +116,132 @@ class FxViewModel @Inject constructor(
         }
     }
 
+    /** Called when the FX page is shown; skips the network if rates were fetched recently. */
+    fun refreshIfStale() {
+        if (_state.value.status == FxStatus.Loading) return
+        if (System.currentTimeMillis() - lastFetchMs < STALE_AFTER_MS) return
+        refresh()
+    }
+
     fun refresh() {
+        lastFetchMs = System.currentTimeMillis()
         viewModelScope.launch {
             _state.update { it.copy(status = FxStatus.Loading, error = "") }
             try {
                 val resp = service.latest("USD")
-                // Merge live rates ON TOP of fallback so all 61 currencies stay available.
-                // frankfurter.app uses ECB data (~33 currencies) and excludes TWD, VND, etc.
-                val merged = FALLBACK_RATES.toMutableMap()
-                merged.putAll(resp.rates)
-                merged["USD"] = 1.0
+                val live = resp.rates.filterValues(::isValidRate) + ("USD" to 1.0)
+                require(resp.result == "success" && resp.baseCode == "USD" && live.size > 1) {
+                    "unexpected FX response"
+                }
+                val date = UPDATED_FORMAT.format(Instant.ofEpochSecond(resp.lastUpdateUnix))
+                saveRates(live, date)
+                // Keep built-in codes the feed might drop, so saved rows never disappear.
+                val merged = FALLBACK_RATES + live
                 _state.update { s ->
                     s.copy(
                         rates = merged,
                         codes = sortedCodes(merged.keys.toSet(), s.pinnedCodes),
                         status = FxStatus.Ok,
-                        lastUpdated = resp.date,
+                        lastUpdated = date,
                         error = "",
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _state.update { s ->
-                    s.copy(
-                        rates = FALLBACK_RATES,
-                        codes = sortedCodes(FALLBACK_RATES.keys.toSet(), s.pinnedCodes),
-                        status = FxStatus.Offline,
-                        lastUpdated = "內建匯率",
-                        error = "",
-                    )
-                }
+                // Keep whatever rates we already have (live, cached or built-in).
+                _state.update { it.copy(status = FxStatus.Offline, error = "") }
             }
             recalculate()
         }
     }
 
-    fun selectFrom(code: String) {
-        _state.update { it.copy(fromCode = code) }
-        recalculate()
-    }
-
-    fun selectTo(code: String) {
-        _state.update { it.copy(toCode = code) }
-        recalculate()
-    }
-
-    fun onNumKey(digit: String) {
-        val cur = _state.value.fromText
-        if (cur.length >= 18) return
-        val newText = if (cur == "0" && digit != ".") digit else cur + digit
-        _state.update { it.copy(fromText = newText, error = "") }
-        recalculate()
-    }
-
-    fun onDecimalKey() {
-        val cur = _state.value.fromText
-        if ('.' in cur) return
-        val newText = if (cur.isEmpty()) "0." else "$cur."
-        _state.update { it.copy(fromText = newText, error = "") }
-        recalculate()
-    }
-
-    fun onBackspaceKey() {
-        val cur = _state.value.fromText
-        if (cur.isEmpty()) return
-        _state.update { it.copy(fromText = cur.dropLast(1), error = "") }
-        recalculate()
-    }
-
-    fun onFromInput(text: String) {
-        _state.update { it.copy(fromText = text, error = "") }
-        recalculate()
-    }
-
-    fun swap() {
+    /** Make [index] the input row, starting from the value it currently shows. */
+    fun setActive(index: Int) {
         _state.update { s ->
+            if (index !in s.rows.indices || index == s.activeIndex) return@update s
             s.copy(
-                fromCode = s.toCode,
-                toCode = s.fromCode,
-                fromText = s.toText,
-                toText = s.fromText,
+                activeIndex = index,
+                inputText = s.values[index].takeIf { it.toDoubleOrNull() != null } ?: "",
             )
         }
         recalculate()
     }
 
-    private fun recalculate() {
-        val s = _state.value
-        val amount = s.fromText.toDoubleOrNull() ?: return run {
-            _state.update { it.copy(toText = "") }
+    /** Change a row's currency; picking one already shown swaps the two rows. */
+    fun selectCode(index: Int, code: String) {
+        val rows = _state.value.rows
+        if (index !in rows.indices) return
+        val other = rows.indexOf(code)
+        val updated = rows.toMutableList().apply {
+            if (other >= 0) this[other] = rows[index]
+            this[index] = code
         }
-        val fromRate = s.rates[s.fromCode] ?: return
-        val toRate = s.rates[s.toCode] ?: return
-        if (fromRate <= 0.0) return
-        val result = amount * (toRate / fromRate)
-        _state.update { it.copy(toText = result.formatFxResult()) }
+        setRows(updated, _state.value.activeIndex)
+    }
+
+    /** Long-press reorder; the active row follows its currency. */
+    fun moveRow(from: Int, to: Int) {
+        val s = _state.value
+        if (from !in s.rows.indices || to !in s.rows.indices || from == to) return
+        val activeCode = s.rows[s.activeIndex]
+        val rows = s.rows.toMutableList().apply { add(to, removeAt(from)) }
+        setRows(rows, rows.indexOf(activeCode))
+    }
+
+    fun addRow(code: String) {
+        val s = _state.value
+        if (code in s.rows) return
+        setRows(s.rows + code, s.activeIndex)
+    }
+
+    fun removeRow(index: Int) {
+        val s = _state.value
+        if (s.rows.size <= 1 || index !in s.rows.indices) return
+        val active = when {
+            index < s.activeIndex -> s.activeIndex - 1
+            index == s.activeIndex -> 0
+            else -> s.activeIndex
+        }
+        if (index == s.activeIndex) _state.update { it.copy(inputText = "") }
+        setRows(s.rows.filterIndexed { i, _ -> i != index }, active)
+    }
+
+    private fun setRows(rows: List<String>, activeIndex: Int) {
+        saveRows(rows)
+        _state.update { it.copy(rows = rows, activeIndex = activeIndex) }
+        recalculate()
+    }
+
+    fun onNumKey(digit: String) = onInput(appendDigit(_state.value.inputText, digit))
+
+    fun onDecimalKey() = onInput(appendDecimal(_state.value.inputText))
+
+    fun onBackspaceKey() = onInput(_state.value.inputText.dropLast(1))
+
+    fun onClear() = onInput("")
+
+    private fun onInput(text: String) {
+        _state.update { it.copy(inputText = text, error = "") }
+        recalculate()
+    }
+
+    private fun recalculate() {
+        _state.update { s -> s.copy(values = convertRows(s)) }
+    }
+}
+
+/** Every row converted from the active row's amount; blank when there's no amount. */
+internal fun convertRows(s: FxState): List<String> {
+    val amount = s.inputText.toDoubleOrNull()
+    val fromRate = s.rates[s.rows.getOrNull(s.activeIndex)]
+    return s.rows.mapIndexed { i, code ->
+        val toRate = s.rates[code]
+        when {
+            i == s.activeIndex -> s.inputText
+            amount == null || fromRate == null || toRate == null -> ""
+            else -> (amount * (toRate / fromRate)).formatFxResult()
+        }
     }
 }
 
@@ -189,9 +262,20 @@ private fun Double.formatFxResult(): String {
         .toPlainString()
 }
 
+private fun isValidRate(rate: Double): Boolean = rate.isFinite() && rate > 0.0
+
+internal val DEFAULT_ROWS: List<String> = listOf("TWD", "USD", "JPY", "EUR", "CNY")
 internal val DEFAULT_PINS: Set<String> = setOf("TWD", "USD", "EUR", "JPY", "CNY")
 private const val PREFS_NAME = "fx_prefs"
 private const val KEY_PINS = "pinned_codes"
+private const val KEY_ROWS = "fx_rows"
+// The feed updates daily; re-check at most every 30 minutes when the page is opened.
+private const val STALE_AFTER_MS = 30 * 60 * 1000L
+private const val KEY_RATES = "cached_rates"
+private const val KEY_RATES_DATE = "cached_rates_date"
+private const val BUILT_IN_LABEL = "內建匯率"
+private val UPDATED_FORMAT: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault())
 
 // Fallback rates (USD-based, approximate 2024-01)
 private val FALLBACK_RATES: Map<String, Double> = mapOf(

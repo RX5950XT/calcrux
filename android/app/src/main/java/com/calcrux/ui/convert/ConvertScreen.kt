@@ -14,12 +14,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.calcrux.ui.shared.NumPad
+import com.calcrux.ui.shared.TabularNumbers
+import com.calcrux.ui.shared.prettyMath
 
 @Composable
 fun ConvertScreen(
@@ -59,7 +60,7 @@ fun ConvertScreen(
         // ── From row ───────────────────────────────────────────────────────
         ConvertInputCard(
             unitLabel = unitShortLabel(state.fromUnit),
-            unitKey = state.fromUnit,
+            unitAbbr = unitAbbr(state.fromUnit),
             value = state.fromText,
             isInput = true,
             onUnitClick = { showFromPicker = true },
@@ -70,29 +71,22 @@ fun ConvertScreen(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center,
         ) {
-            IconButton(
+            FilledTonalIconButton(
                 onClick = vm::swap,
                 modifier = Modifier.padding(vertical = 4.dp),
             ) {
-                Icon(
-                    Icons.Default.SwapVert,
-                    contentDescription = "互換",
-                    tint = MaterialTheme.colorScheme.primary,
-                )
+                Icon(Icons.Default.SwapVert, contentDescription = "互換")
             }
         }
 
         // ── To row ─────────────────────────────────────────────────────────
         ConvertInputCard(
             unitLabel = unitShortLabel(state.toUnit),
-            unitKey = state.toUnit,
+            unitAbbr = unitAbbr(state.toUnit),
             value = state.toText,
             isInput = false,
             onUnitClick = { showToPicker = true },
         )
-
-        Spacer(Modifier.height(8.dp))
-        HorizontalDivider()
 
         // ── Error ──────────────────────────────────────────────────────────
         if (state.error.isNotEmpty()) {
@@ -104,17 +98,18 @@ fun ConvertScreen(
             )
         }
 
-        Spacer(Modifier.weight(1f))   // push numpad to bottom
-        HorizontalDivider()
+        Spacer(Modifier.weight(0.15f))
 
         // ── NumPad ─────────────────────────────────────────────────────────
         NumPad(
             onDigit = vm::onNumKey,
             onDecimal = vm::onDecimalKey,
             onBackspace = vm::onBackspaceKey,
+            onClear = vm::onClear,
+            onToggleSign = if (state.category == "temperature") vm::onToggleSign else null,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp),
+                .weight(1f),
         )
     }
 
@@ -142,7 +137,7 @@ fun ConvertScreen(
 @Composable
 private fun ConvertInputCard(
     unitLabel: String,
-    unitKey: String,
+    unitAbbr: String,
     value: String,
     isInput: Boolean,
     onUnitClick: () -> Unit,
@@ -150,7 +145,7 @@ private fun ConvertInputCard(
     val displayText = when {
         isInput && value.isEmpty() -> "0"
         !isInput && value.isEmpty() -> "—"
-        else -> value
+        else -> prettyMath(value)
     }
     val textColor = when {
         isInput && value.isEmpty() -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
@@ -171,7 +166,7 @@ private fun ConvertInputCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = MaterialTheme.shapes.medium,
     ) {
@@ -193,7 +188,7 @@ private fun ConvertInputCard(
                         style = MaterialTheme.typography.titleMedium,
                     )
                     Text(
-                        text = unitKey,
+                        text = unitAbbr,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -209,7 +204,7 @@ private fun ConvertInputCard(
             Text(
                 text = displayText,
                 fontSize = 32.sp,
-                fontFamily = FontFamily.Monospace,
+                style = TabularNumbers,
                 textAlign = TextAlign.End,
                 color = textColor,
                 maxLines = 1,

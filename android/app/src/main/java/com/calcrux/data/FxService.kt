@@ -1,19 +1,19 @@
 package com.calcrux.data
 
 import com.squareup.moshi.Json
-import com.squareup.moshi.JsonClass
 import retrofit2.http.GET
-import retrofit2.http.Query
+import retrofit2.http.Path
 
-@JsonClass(generateAdapter = true)
+/** ExchangeRate-API open endpoint: ~160 currencies (incl. TWD), refreshed once a day. */
 data class FxResponse(
-    val base: String,
-    val date: String,
+    val result: String,
+    @Json(name = "base_code") val baseCode: String,
+    @Json(name = "time_last_update_unix") val lastUpdateUnix: Long,
     val rates: Map<String, Double>,
 )
 
 interface FxService {
-    /** Fetch latest rates with USD as base. */
-    @GET("latest")
-    suspend fun latest(@Query("from") base: String = "USD"): FxResponse
+    /** Fetch latest rates for [base]. */
+    @GET("v6/latest/{base}")
+    suspend fun latest(@Path("base") base: String = "USD"): FxResponse
 }

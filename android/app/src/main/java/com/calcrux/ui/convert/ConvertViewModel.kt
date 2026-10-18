@@ -3,6 +3,9 @@ package com.calcrux.ui.convert
 import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import com.calcrux.data.RustBridge
+import com.calcrux.ui.shared.appendDecimal
+import com.calcrux.ui.shared.appendDigit
+import com.calcrux.ui.shared.toggleSign
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,25 +37,20 @@ class ConvertViewModel @Inject constructor() : ViewModel() {
         // Apply desired display order; any extra categories from Rust fall to the end.
         val cats = CATEGORY_ORDER.filter { it in rustCats } +
                    rustCats.filterNot { it in CATEGORY_ORDER }
-        val first = cats.firstOrNull() ?: ""
-        val units = if (first.isNotEmpty()) sortedUnits(first, RustBridge.unitList(first) ?: emptyList()) else emptyList()
-        _state.value = ConvertState(
-            categories = cats,
-            category = first,
-            units = units,
-            fromUnit = units.firstOrNull() ?: "",
-            toUnit = units.getOrNull(1) ?: units.firstOrNull() ?: "",
-        )
+        _state.value = ConvertState(categories = cats)
+        cats.firstOrNull()?.let(::selectCategory)
     }
 
     fun selectCategory(cat: String) {
         val units = sortedUnits(cat, RustBridge.unitList(cat) ?: emptyList())
+        val (from, to) = DEFAULT_UNIT_PAIR[cat]?.takeIf { (f, t) -> f in units && t in units }
+            ?: ((units.firstOrNull() ?: "") to (units.getOrNull(1) ?: units.firstOrNull() ?: ""))
         _state.update {
             it.copy(
                 category = cat,
                 units = units,
-                fromUnit = units.firstOrNull() ?: "",
-                toUnit = units.getOrNull(1) ?: units.firstOrNull() ?: "",
+                fromUnit = from,
+                toUnit = to,
                 fromText = "",
                 toText = "",
                 error = "",
@@ -77,28 +75,19 @@ class ConvertViewModel @Inject constructor() : ViewModel() {
 
     // ── NumPad input handlers ─────────────────────────────────────────────────
 
-    fun onNumKey(digit: String) {
-        val cur = _state.value.fromText
-        if (cur.length >= 18) return
-        // Prevent leading zeros: "0" + "5" → "5", but "0." + "5" is fine
-        val newText = if (cur == "0" && digit != ".") digit else cur + digit
-        _state.update { it.copy(fromText = newText, error = "") }
-        recalculate()
-    }
+    fun onNumKey(digit: String) = editInput { appendDigit(it, digit) }
 
-    fun onDecimalKey() {
-        val cur = _state.value.fromText
-        if ('.' in cur) return
-        val newText = if (cur.isEmpty()) "0." else "$cur."
-        _state.update { it.copy(fromText = newText, error = "") }
-        recalculate()
-    }
+    fun onDecimalKey() = editInput(::appendDecimal)
 
-    fun onBackspaceKey() {
-        val cur = _state.value.fromText
-        if (cur.isEmpty()) return
-        val newText = cur.dropLast(1)
-        _state.update { it.copy(fromText = newText, error = "") }
+    fun onBackspaceKey() = editInput { it.dropLast(1) }
+
+    fun onClear() = editInput { "" }
+
+    /** Only temperatures go below zero. */
+    fun onToggleSign() = editInput(::toggleSign)
+
+    private fun editInput(edit: (String) -> String) {
+        _state.update { it.copy(fromText = edit(it.fromText), error = "") }
         recalculate()
     }
 
@@ -107,7 +96,8 @@ class ConvertViewModel @Inject constructor() : ViewModel() {
             s.copy(
                 fromUnit = s.toUnit,
                 toUnit = s.fromUnit,
-                fromText = s.toText,
+                // The result may be an error marker; never carry that into the input.
+                fromText = s.toText.takeIf { it.toDoubleOrNull() != null } ?: "",
                 toText = s.fromText,
             )
         }
@@ -125,10 +115,22 @@ class ConvertViewModel @Inject constructor() : ViewModel() {
             val r = RustBridge.convertUnit(s.category, s.fromUnit, s.toUnit, value)
             _state.update { it.copy(toText = r.formatResult(), error = "") }
         } catch (e: Exception) {
-            _state.update { it.copy(toText = "", error = e.message?.take(60) ?: "換算錯誤") }
+            _state.update { it.copy(toText = "", error = "換算錯誤") }
         }
     }
 }
+
+/** Everyday pair shown when a category opens (instead of e.g. pm → Å). */
+private val DEFAULT_UNIT_PAIR = mapOf(
+    "length" to ("m" to "ft"),
+    "area" to ("sq.m" to "sq.ft"),
+    "volume" to ("l" to "ml"),
+    "weight" to ("kg" to "lb"),
+    "velocity" to ("kmph" to "mileph"),
+    "time" to ("h" to "min"),
+    "temperature" to ("C" to "F"),
+    "data" to ("mb" to "kb"),
+)
 
 private val CATEGORY_ORDER = listOf(
     "length", "area", "volume", "weight", "velocity", "time", "temperature", "data",

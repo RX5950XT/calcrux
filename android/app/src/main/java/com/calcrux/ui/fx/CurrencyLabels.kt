@@ -1,5 +1,8 @@
 package com.calcrux.ui.fx
 
+import java.util.Currency
+import java.util.Locale
+
 /** Map of ISO 4217 code → display name (Traditional Chinese). */
 fun currencyName(code: String): String = when (code) {
     "AED" -> "阿聯酋迪拉姆"
@@ -66,5 +69,17 @@ fun currencyName(code: String): String = when (code) {
     "VND" -> "越南盾"
     "ZAR" -> "南非蘭特"
     "ZMW" -> "尚比亞夸查"
-    else  -> code
+    // Codes outside the hand-written list (the live feed has ~160) use the platform name.
+    else  -> runCatching { Currency.getInstance(code).getDisplayName(Locale.TAIWAN) }.getOrDefault(code)
+}
+
+/** Flag emoji from the ISO 4217 code's country prefix; EUR → EU, X-codes (XAF, XDR…) → 🌐. */
+fun currencyFlag(code: String): String {
+    val country = when {
+        code == "EUR" -> "EU"
+        code == "ANG" -> "CW"
+        code.length != 3 || code.startsWith("X") || !code.all { it in 'A'..'Z' } -> return "🌐"
+        else -> code.take(2)
+    }
+    return country.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
 }

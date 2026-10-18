@@ -18,8 +18,8 @@ android {
         applicationId = "com.calcrux"
         minSdk = 29
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Filter to the four live ABIs. Prevents dead platforms (mips, mips64,
@@ -114,7 +114,7 @@ dependencies {
 
     implementation(libs.material)
     // JNA AAR is required for UniFFI — must use @aar to include libjnidispatch.so
-    implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.compose.icons)

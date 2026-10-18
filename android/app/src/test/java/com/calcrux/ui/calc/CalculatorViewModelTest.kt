@@ -32,4 +32,30 @@ class CalculatorViewModelTest {
 
         assertNull(result)
     }
+
+    @Test
+    fun `空字串時可以輸入負號`() {
+        assertEquals("-", CalculatorViewModel.normalizeArithmeticOperatorAppend("", "-"))
+        assertEquals("(-", CalculatorViewModel.normalizeArithmeticOperatorAppend("(", "-"))
+    }
+
+    @Test
+    fun `負號後改點乘號會移除負號而不是變成非法算式`() {
+        assertEquals("(", CalculatorViewModel.normalizeArithmeticOperatorAppend("(-", "×"))
+        assertEquals("", CalculatorViewModel.normalizeArithmeticOperatorAppend("-", "+"))
+    }
+
+    @Test
+    fun `退格一次刪除整個函數名`() {
+        assertEquals("2+", CalculatorViewModel.deleteLast("2+sin("))
+        assertEquals("", CalculatorViewModel.deleteLast("arcsin("))
+        assertEquals("12", CalculatorViewModel.deleteLast("123"))
+    }
+
+    @Test
+    fun `未閉合括號自動補上`() {
+        assertEquals("sin(30)", CalculatorViewModel.closeParens("sin(30"))
+        assertEquals("2×(3+(4))", CalculatorViewModel.closeParens("2×(3+(4"))
+        assertEquals("(1/3)", CalculatorViewModel.closeParens("(1/3)"))
+    }
 }

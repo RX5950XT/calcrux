@@ -124,6 +124,10 @@ fun unitShortLabel(key: String): String {
     return if (idx > 0) full.substring(0, idx).trim() else full
 }
 
+// Abbreviation only (the "(abbr)" part), e.g. "Å" for "ang"
+fun unitAbbr(key: String): String =
+    unitLabel(key).substringAfter('(', "").substringBefore(')').ifEmpty { key }
+
 // Physical "small → large" order for each category.
 // Units not in the list fall to the end in original order.
 val UNIT_PHYSICAL_ORDER: Map<String, List<String>> = mapOf(

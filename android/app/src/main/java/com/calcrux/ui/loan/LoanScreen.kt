@@ -9,10 +9,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.calcrux.R
+import com.calcrux.ui.shared.TabularNumbers
 
 @Composable
 fun LoanScreen(
@@ -60,14 +64,26 @@ fun LoanScreen(
                     onClick = { vm.selectMethod(true) },
                     label = { Text(stringResource(R.string.loan_equal_payment)) },
                     modifier = Modifier.weight(1f),
+                    colors = methodChipColors(),
                 )
                 FilterChip(
                     selected = !state.methodIsEqualPayment,
                     onClick = { vm.selectMethod(false) },
                     label = { Text(stringResource(R.string.loan_equal_principal)) },
                     modifier = Modifier.weight(1f),
+                    colors = methodChipColors(),
                 )
             }
+        }
+        item {
+            Text(
+                stringResource(
+                    if (state.methodIsEqualPayment) R.string.loan_equal_payment_desc
+                    else R.string.loan_equal_principal_desc,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
 
         item {
@@ -94,48 +110,55 @@ fun LoanScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         SummaryRow(
-                            stringResource(R.string.loan_monthly),
-                            "%.2f".format(sched.instalments.firstOrNull()?.payment ?: 0.0),
+                            // Equal-principal payments shrink each month; label the first one.
+                            stringResource(
+                                if (state.methodIsEqualPayment) R.string.loan_monthly else R.string.loan_first_month,
+                            ),
+                            money(sched.instalments.firstOrNull()?.payment ?: 0.0),
                         )
-                        SummaryRow(
-                            stringResource(R.string.loan_total_interest),
-                            "%.2f".format(sched.totalInterest),
-                        )
-                        SummaryRow(
-                            stringResource(R.string.loan_total_payment),
-                            "%.2f".format(sched.totalPayment),
-                        )
+                        SummaryRow(stringResource(R.string.loan_total_interest), money(sched.totalInterest))
+                        SummaryRow(stringResource(R.string.loan_total_payment), money(sched.totalPayment))
                     }
                 }
             }
 
             item {
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                ScheduleRow(
                     listOf(
                         stringResource(R.string.loan_col_period),
                         stringResource(R.string.loan_col_payment),
                         stringResource(R.string.loan_col_principal),
                         stringResource(R.string.loan_col_interest),
                         stringResource(R.string.loan_col_balance),
-                    ).forEach { h ->
-                        Text(h, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                    }
-                }
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 HorizontalDivider()
             }
 
             items(sched.instalments) { inst ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    Text("${inst.period}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("%.2f".format(inst.payment), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("%.2f".format(inst.principalPart), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("%.2f".format(inst.interestPart), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("%.2f".format(inst.balance), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                }
+                ScheduleRow(
+                    listOf(
+                        "${inst.period}",
+                        money(inst.payment),
+                        money(inst.principalPart),
+                        money(inst.interestPart),
+                        money(inst.balance),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
         }
     }
 }
+
+// Same selected style as the unit-category chips.
+@Composable
+private fun methodChipColors() = FilterChipDefaults.filterChipColors(
+    selectedContainerColor = MaterialTheme.colorScheme.primary,
+    selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+)
 
 @Composable
 private fun LoanInputField(
@@ -157,7 +180,36 @@ private fun LoanInputField(
 @Composable
 private fun SummaryRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            value,
+            style = MaterialTheme.typography.titleMedium.merge(TabularNumbers),
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
+
+// Period column is narrow; balance gets extra room for 8-digit amounts.
+private val COLUMN_WEIGHTS = listOf(0.6f, 1f, 1f, 1f, 1.3f)
+
+@Composable
+private fun ScheduleRow(
+    cells: List<String>,
+    style: TextStyle,
+    color: Color = MaterialTheme.colorScheme.onSurface,
+) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        cells.forEachIndexed { i, cell ->
+            Text(
+                cell,
+                modifier = Modifier.weight(COLUMN_WEIGHTS[i]),
+                style = style.merge(TabularNumbers),
+                color = color,
+                textAlign = if (i == 0) TextAlign.Start else TextAlign.End,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+private fun money(v: Double): String = "%,.2f".format(v)

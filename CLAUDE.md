@@ -60,6 +60,15 @@ android/app/build/outputs/apk/release/app-release.apk
 - 循環小數：**display** 用上橫線（`1/3` → `0.3̅`）；**refeed** 用 atom `(1/3)` 寫回 expression 續算。勿把 display 當 expression
 - FFI `calc_eval` 回傳 `CalcResult { display, refeed }`；改 API 後需 regenerate UniFFI + 重建 `.so`
 - 舊括號循環字串 `0.(3)` 會 parse error（防靜默錯算）；`2(3+4)` 隱式乘法仍合法
+- 小寫 `e` 一律是自然常數（`2e+3` ≈ 8.44）；科學記號只認大寫 `E`
+- 結果超過約 2^131072（≈39k 位，`10000!` 仍可）回 `overflow`，避免 `9^9^9` 卡死主執行緒；循環節超過 18 位改四捨五入顯示，refeed 仍為精確 `(p/q)`
+- 預覽與 `=` 會自動補右括號；結果後按 `! % x² xʸ )` 接續結果，其他鍵重新開始
+- 貸款期數上限 1200 個月（Rust `MAX_MONTHS`，Kotlin 端同步）
+- 匯率來源：ExchangeRate-API 免費端點 `open.er-api.com/v6/latest/USD`（約 160 幣別含 TWD，每日更新一次，中間價；條款要求畫面標示 "Rates By Exchange Rate API"）。成功下載存 `fx_prefs`，離線優先用快取；更新失敗保留現有匯率
+- 匯率頁為多欄位（預設 TWD/USD/JPY/EUR/CNY，可新增／移除／長按拖動排序，存 `fx_rows`），點任一欄即成為輸入欄；切到匯率頁時若距上次抓取超過 30 分鐘自動更新
+- 歷史已併入計算機：在顯示區下拉（或點歷史圖示）開啟；最新一筆在最下面，列表到底再上推／拖把手／返回鍵關閉；主分頁只剩「計算機／換算」
+- 歷史面板一直保持組合狀態，用 `graphicsLayer` 平移（不要改回改高度，會每幀重新量測列表而卡頓）；開關狀態用 `derivedStateOf`，避免整個計算機每幀重組
+- 16 KB 分頁（Android 15+）：`.cargo/config.toml` 對 64 位元 Android target 加 `-z max-page-size=16384`；JNA 需 ≥ 5.17.0。驗證：`zipalign -c -P 16 -v 4 <apk>` 與 `llvm-readelf -lW <so>`（LOAD Align 需為 `0x4000`）
 - 此工作站 `AvailPageFile` 偏低時，Rust Android cross-compile 與 Gradle daemon 可能失敗；重建 native library 前先確認分頁檔空間
 
 ## 現況摘要

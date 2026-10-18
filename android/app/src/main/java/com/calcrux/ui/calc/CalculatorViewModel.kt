@@ -21,6 +21,9 @@ data class CalculatorState(
     val preview: String = "",
     /** Pretty result shown only when [isResult] is true (may contain overlines). */
     val resultDisplay: String = "",
+    /** The expression that produced [resultDisplay], shown above it. */
+    val evaluatedExpression: String = "",
+    /** Raw engine error message (mapped to user-facing text by the screen). */
     val error: String = "",
     val degreesMode: Boolean = true,
     val invMode: Boolean = false,
@@ -36,144 +39,68 @@ class CalculatorViewModel @Inject constructor(
     private val _state = MutableStateFlow(CalculatorState())
     val state = _state.asStateFlow()
 
-    fun toggleAngleMode() {
-        _state.update { s ->
-            s.copy(
-                degreesMode = !s.degreesMode,
-                preview = recompute(s.expression, !s.degreesMode),
-            )
-        }
-    }
-
-    fun toggleInvMode() {
-        _state.update { it.copy(invMode = !it.invMode) }
-    }
-
     fun toggleScientificMode() {
         _state.update { it.copy(scientificMode = !it.scientificMode) }
     }
 
     fun setExpression(expr: String) {
-        _state.update { s ->
-            s.copy(
-                expression = expr,
-                preview = recompute(expr, s.degreesMode),
-                resultDisplay = "",
-                error = "",
-                isResult = false,
-            )
-        }
+        _state.update { s -> edited(s, expr) }
     }
 
     fun onKey(key: CalcKey) {
         _state.update { s ->
             when (key) {
-                CalcKey.Clear, CalcKey.ClearAll ->
-                    s.copy(
-                        expression = "",
-                        preview = "",
-                        resultDisplay = "",
-                        error = "",
-                        isResult = false,
-                    )
+                CalcKey.ClearAll -> edited(s, "")
 
-                CalcKey.Backspace -> {
-                    if (s.isResult) {
-                        // Never half-edit a refeed atom; clear instead.
-                        s.copy(
-                            expression = "",
-                            preview = "",
-                            resultDisplay = "",
-                            error = "",
-                            isResult = false,
-                        )
-                    } else {
-                        val expr = s.expression.dropLast(1)
-                        s.copy(
-                            expression = expr,
-                            preview = recompute(expr, s.degreesMode),
-                            resultDisplay = "",
-                            error = "",
-                            isResult = false,
-                        )
-                    }
-                }
+                // Never half-edit a refeed atom like `(1/3)`; clear instead.
+                CalcKey.Backspace -> edited(s, if (s.isResult) "" else deleteLast(s.expression))
 
-                CalcKey.Equals -> evaluate(s)
+                // `=` on a shown result is a no-op (avoids duplicate history rows).
+                CalcKey.Equals -> if (s.isResult) s else evaluate(s)
 
-                is CalcKey.Digit -> {
-                    if (s.isResult) {
-                        // Start a fresh entry after a result.
-                        replaceExpression(s, key.ch)
-                    } else {
-                        append(s, key.ch)
-                    }
-                }
+                CalcKey.Inv -> s.copy(invMode = !s.invMode)
+
+                CalcKey.Angle -> s.copy(
+                    degreesMode = !s.degreesMode,
+                    preview = recompute(s.expression, !s.degreesMode),
+                )
+
+                // Start a fresh entry after a result.
+                is CalcKey.Digit -> if (s.isResult) edited(s, key.ch) else edited(s, s.expression + key.ch)
 
                 is CalcKey.Op -> {
-                    when {
-                        key.ch in arithmeticOperators -> {
-                            // Continue from refeed (already stored in expression after `=`).
-                            val expression = normalizeArithmeticOperatorAppend(s.expression, key.ch)
-                                ?: return@update appendLeavingResult(s, key.ch)
-                            s.copy(
-                                expression = expression,
-                                preview = recompute(expression, s.degreesMode),
-                                resultDisplay = "",
-                                error = "",
-                                isResult = false,
-                            )
-                        }
-                        // `.` and other non-arithmetic ops: replace after result.
-                        s.isResult -> replaceExpression(s, key.ch)
-                        else -> append(s, key.ch)
-                    }
+                    val normalized = normalizeArithmeticOperatorAppend(s.expression, key.ch)
+                    if (normalized != null) edited(s, normalized) else insert(s, key.ch)
                 }
 
-                is CalcKey.Func -> {
-                    if (s.isResult) {
-                        replaceExpression(s, key.insert)
-                    } else {
-                        append(s, key.insert)
-                    }
-                }
+                is CalcKey.Func -> insert(s, key.insert)
             }
         }
     }
 
-    private fun replaceExpression(s: CalculatorState, text: String): CalculatorState =
-        s.copy(
-            expression = text,
-            preview = recompute(text, s.degreesMode),
-            resultDisplay = "",
-            error = "",
-            isResult = false,
-        )
+    /** Postfix inserts continue from a result (`5` → `5!`); anything else starts fresh. */
+    private fun insert(s: CalculatorState, text: String): CalculatorState =
+        if (s.isResult && text !in postfixInserts) edited(s, text) else edited(s, s.expression + text)
 
-    private fun append(s: CalculatorState, ch: String): CalculatorState {
-        val expr = s.expression + ch
-        return s.copy(
+    private fun edited(s: CalculatorState, expr: String): CalculatorState =
+        s.copy(
             expression = expr,
             preview = recompute(expr, s.degreesMode),
             resultDisplay = "",
+            evaluatedExpression = "",
             error = "",
             isResult = false,
         )
-    }
-
-    private fun appendLeavingResult(s: CalculatorState, ch: String): CalculatorState {
-        // Fallback path when normalize returns null for a non-arithmetic op.
-        return if (s.isResult) replaceExpression(s, ch) else append(s, ch)
-    }
 
     private fun evaluate(s: CalculatorState): CalculatorState {
         if (s.expression.isBlank()) return s
+        val expr = closeParens(s.expression)
         return try {
-            val result = RustBridge.calcEval(s.expression, s.degreesMode)
+            val result = RustBridge.calcEval(expr, s.degreesMode)
             viewModelScope.launch {
                 historyDao.insert(
                     HistoryEntry(
-                        expression = s.expression,
+                        expression = expr,
                         result = result.display,
                         source = "calculator",
                     ),
@@ -183,18 +110,19 @@ class CalculatorViewModel @Inject constructor(
                 expression = result.refeed,
                 preview = "",
                 resultDisplay = result.display,
+                evaluatedExpression = expr,
                 error = "",
                 isResult = true,
             )
         } catch (e: Exception) {
-            s.copy(error = e.message?.take(80) ?: "Error")
+            s.copy(error = e.message.orEmpty().ifEmpty { "error" })
         }
     }
 
     private fun recompute(expr: String, degrees: Boolean): String {
         if (expr.isBlank()) return ""
         return try {
-            RustBridge.calcEval(expr, degrees).display
+            RustBridge.calcEval(closeParens(expr), degrees).display
         } catch (_: Exception) {
             ""
         }
@@ -202,19 +130,36 @@ class CalculatorViewModel @Inject constructor(
 
     companion object {
         private val arithmeticOperators = setOf("+", "-", "×", "÷")
+        private val postfixInserts = setOf(")", "%", "!", "^2", "^")
 
         /**
          * If [ch] is a four-function operator, return the expression after
          * applying "replace last operator" / append rules; otherwise null.
+         * Only `-` may start an expression or follow `(` (a negative number).
          */
         internal fun normalizeArithmeticOperatorAppend(expression: String, ch: String): String? {
             if (ch !in arithmeticOperators) return null
-            if (expression.isBlank()) return expression
-            return if (expression.takeLast(1) in arithmeticOperators) {
-                expression.dropLast(1) + ch
-            } else {
-                expression + ch
+            val canStartHere = { base: String -> base.isEmpty() || base.endsWith("(") }
+            return when {
+                expression.takeLast(1) in arithmeticOperators -> {
+                    val base = expression.dropLast(1)
+                    if (canStartHere(base) && ch != "-") base else base + ch
+                }
+                canStartHere(expression) && ch != "-" -> expression
+                else -> expression + ch
             }
+        }
+
+        /** Drop the last character, or a whole function token such as `sin(`. */
+        internal fun deleteLast(expression: String): String {
+            val token = functionInserts.firstOrNull { expression.endsWith(it) }
+            return expression.dropLast(token?.length ?: 1)
+        }
+
+        /** Append the `)` the user has not typed yet, so `sin(30` evaluates. */
+        internal fun closeParens(expression: String): String {
+            val open = expression.count { it == '(' } - expression.count { it == ')' }
+            return if (open > 0) expression + ")".repeat(open) else expression
         }
     }
 }

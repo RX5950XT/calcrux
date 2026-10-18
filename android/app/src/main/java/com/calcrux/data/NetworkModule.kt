@@ -23,7 +23,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideFxRetrofit(moshi: Moshi): Retrofit = Retrofit.Builder()
-        .baseUrl("https://api.frankfurter.app/")
+        .baseUrl("https://open.er-api.com/")
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
 
