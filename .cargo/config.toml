@@ -1,0 +1,8 @@
+# Android 15+ devices may use 16 KB memory pages; NDK r27 still links 64-bit
+# libraries with 4 KB-aligned LOAD segments, which such devices refuse to load.
+# https://developer.android.com/guide/practices/page-sizes
+[target.aarch64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]
+
+[target.x86_64-linux-android]
+rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

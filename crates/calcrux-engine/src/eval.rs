@@ -5,6 +5,7 @@
 //! working precision (default 256 bits ≈ 77 decimal digits).
 
 use astro_float::BigFloat;
+use malachite::num::logic::traits::SignificantBits;
 
 use crate::error::{EngineError, Result};
 use crate::number::{with_consts, Number, DEFAULT_PREC, ROUND};
@@ -39,6 +40,10 @@ impl Evaluator {
 
     /// Evaluate a pre-parsed expression.
     pub fn eval(&self, expr: &Expr) -> Result<Number> {
+        check_magnitude(self.eval_node(expr)?)
+    }
+
+    fn eval_node(&self, expr: &Expr) -> Result<Number> {
         match expr {
             Expr::Number(s) => Number::parse_decimal(s),
 
@@ -123,6 +128,9 @@ impl Evaluator {
         // Try integer exponent fast-path (stays Rational).
         if let Number::Rational(ref r) = exp {
             if let Some(n) = r.try_i64() {
+                if exact_pow_too_large(&base, n) {
+                    return Err(EngineError::Overflow);
+                }
                 if let Some(result) = base.pow_int(n) {
                     return Ok(result);
                 }
@@ -377,6 +385,43 @@ impl Evaluator {
 }
 
 // --- small helpers -------------------------------------------------------
+
+/// Largest accepted magnitude, in bits (≈ 39k decimal digits; still fits `10000!`).
+/// Beyond this a keystroke like `9^9^9` would freeze the UI building and printing
+/// millions of digits, so it is reported as overflow instead.
+const MAX_MAGNITUDE_BITS: u64 = 1 << 17;
+
+fn check_magnitude(n: Number) -> Result<Number> {
+    let too_big = match &n {
+        Number::Rational(r) => {
+            r.numerator_ref().significant_bits() > MAX_MAGNITUDE_BITS
+                || r.denominator_ref().significant_bits() > MAX_MAGNITUDE_BITS
+        }
+        Number::Real(f) => {
+            if f.is_nan() {
+                return Err(EngineError::Domain("undefined result"));
+            }
+            f.is_inf() || f.exponent().is_some_and(|e| i64::from(e) > MAX_MAGNITUDE_BITS as i64)
+        }
+    };
+    if too_big {
+        Err(EngineError::Overflow)
+    } else {
+        Ok(n)
+    }
+}
+
+/// Lower-bound size estimate for an exact `base^n`, checked before computing it.
+fn exact_pow_too_large(base: &Number, n: i64) -> bool {
+    let Number::Rational(b) = base else {
+        return false;
+    };
+    let bits = b
+        .numerator_ref()
+        .significant_bits()
+        .max(b.denominator_ref().significant_bits());
+    bits.saturating_sub(1).saturating_mul(n.unsigned_abs()) > MAX_MAGNITUDE_BITS
+}
 
 fn is_integer_bigfloat(f: &BigFloat, prec: usize) -> bool {
     if f.is_nan() || f.is_inf() {
@@ -788,9 +833,25 @@ mod tests {
 
     #[test]
     fn large_number_no_overflow() {
-        // (1e100 + 1) − 1e100 should equal 1 (no cancellation) at 256-bit.
-        let r = eval("(1e100+1)-1e100");
+        // (1E100 + 1) − 1E100 should equal 1 (no cancellation) at 256-bit.
+        let r = eval("(1E100+1)-1E100");
         assert_eq!(r, Number::one());
+    }
+
+    #[test]
+    fn huge_results_overflow_instead_of_hanging() {
+        for src in ["9^9^9", "2^1000000", "(1/3)^1000000", "e^1000000", "10^10^10"] {
+            assert_eq!(Evaluator::default().eval_str(src).unwrap_err(), EngineError::Overflow, "{src}");
+        }
+        assert!(Evaluator::default().eval_str("10000!").is_ok());
+        assert!(Evaluator::default().eval_str("1^1000000000000").is_ok());
+    }
+
+    #[test]
+    fn lowercase_e_is_euler_not_exponent() {
+        approx_eq(&eval("2e+3"), &eval("2×e+3"), "1e-60");
+        approx_eq(&eval("2e3"), &eval("2×e×3"), "1e-60");
+        assert_eq!(eval("2E3"), Number::from_i64(2000));
     }
 
     #[test]
@@ -867,7 +928,7 @@ mod tests {
     fn display_hundredth_not_thousandth() {
         assert_eq!(eval("0.01").to_display_string(18), "0.01");
         assert_eq!(eval("1/100").to_display_string(18), "0.01");
-        assert_eq!(eval("1e-2").to_display_string(18), "0.01");
+        assert_eq!(eval("1E-2").to_display_string(18), "0.01");
         assert_eq!(eval("0.1^2").to_display_string(18), "0.01");
         assert_eq!(eval("0.1^2").to_refeed_string(18), "0.01");
     }

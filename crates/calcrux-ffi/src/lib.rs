@@ -93,16 +93,23 @@ pub fn calc_eval(expression: String, degrees_mode: bool) -> Result<CalcResult, C
 
 // ── unit conversion ───────────────────────────────────────────────────────────
 
+/// Parsed once: building a `Converter` re-parses units.json and evaluates every
+/// ratio, which is too slow to repeat on each keystroke.
+fn converter() -> &'static Converter {
+    static CONVERTER: std::sync::OnceLock<Converter> = std::sync::OnceLock::new();
+    CONVERTER.get_or_init(Converter::new)
+}
+
 /// Return all supported category IDs (sorted).
 #[uniffi::export]
 pub fn unit_categories() -> Vec<String> {
-    Converter::new().categories().iter().map(|s| s.to_string()).collect()
+    converter().categories().iter().map(|s| s.to_string()).collect()
 }
 
 /// Return all unit IDs in `category` (sorted), or `None` if unknown.
 #[uniffi::export]
 pub fn unit_list(category: String) -> Option<Vec<String>> {
-    Converter::new()
+    converter()
         .units(&category)
         .map(|v| v.iter().map(|s| s.to_string()).collect())
 }
@@ -115,7 +122,7 @@ pub fn convert_unit(
     to: String,
     value: f64,
 ) -> Result<f64, ConvertError> {
-    Converter::new()
+    converter()
         .convert(&category, &from, &to, value)
         .map_err(|e| ConvertError::Convert(e.to_string()))
 }

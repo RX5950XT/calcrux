@@ -34,9 +34,12 @@ pub enum LoanError {
     InvalidPrincipal,
     #[error("annual rate must be non-negative")]
     InvalidRate,
-    #[error("term must be at least 1 month")]
+    #[error("term must be between 1 and {MAX_MONTHS} months")]
     InvalidTerm,
 }
+
+/// 100 years. Bounds the schedule size: one `Instalment` is built per month.
+pub const MAX_MONTHS: u32 = 1200;
 
 // ── public types ──────────────────────────────────────────────────────────────
 
@@ -173,13 +176,14 @@ pub fn amortize<M: RepaymentMethod>(
     params: &LoanParams,
     method: M,
 ) -> Result<Schedule, LoanError> {
-    if params.principal <= 0.0 {
+    // Negated comparisons also reject NaN; `is_finite` rejects ±∞.
+    if !(params.principal.is_finite() && params.principal > 0.0) {
         return Err(LoanError::InvalidPrincipal);
     }
-    if params.annual_rate_pct < 0.0 {
+    if !(params.annual_rate_pct.is_finite() && params.annual_rate_pct >= 0.0) {
         return Err(LoanError::InvalidRate);
     }
-    if params.months == 0 {
+    if params.months == 0 || params.months > MAX_MONTHS {
         return Err(LoanError::InvalidTerm);
     }
 
@@ -335,5 +339,22 @@ mod tests {
     fn error_zero_months() {
         let p = LoanParams { principal: 100_000.0, annual_rate_pct: 5.0, months: 0 };
         assert_eq!(amortize(&p, EqualPayment), Err(LoanError::InvalidTerm));
+    }
+
+    #[test]
+    fn error_term_too_long() {
+        // 4 billion months would try to allocate 4 billion instalments.
+        let p = LoanParams { principal: 100_000.0, annual_rate_pct: 5.0, months: 4_000_000_000 };
+        assert_eq!(amortize(&p, EqualPayment), Err(LoanError::InvalidTerm));
+        let p = LoanParams { months: MAX_MONTHS, ..p };
+        assert!(amortize(&p, EqualPayment).is_ok());
+    }
+
+    #[test]
+    fn error_non_finite_inputs() {
+        let p = LoanParams { principal: f64::NAN, annual_rate_pct: 5.0, months: 12 };
+        assert_eq!(amortize(&p, EqualPayment), Err(LoanError::InvalidPrincipal));
+        let p = LoanParams { principal: 1000.0, annual_rate_pct: f64::INFINITY, months: 12 };
+        assert_eq!(amortize(&p, EqualPrincipal), Err(LoanError::InvalidRate));
     }
 }

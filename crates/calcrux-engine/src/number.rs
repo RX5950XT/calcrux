@@ -81,7 +81,11 @@ impl Number {
             rat /= scale;
         }
 
-        // Apply scientific exponent.
+        // Apply scientific exponent. Refuse absurd exponents up front: 10^k is
+        // built exactly and k in the millions would hang before any size check.
+        if exp_abs > 50_000 {
+            return Err(EngineError::Overflow);
+        }
         if exp_abs > 0 {
             let scale = Rational::from(Natural::from(10u32).pow(exp_abs as u64));
             if exp_sign {
@@ -299,7 +303,9 @@ fn digits_to_string(digits: &[u32]) -> String {
 }
 
 /// Long-division cycle detection for the fractional part `num/den` (0 ≤ num < den).
-fn repeating_decimal_parts(num: &Natural, den: &Natural) -> (String, String) {
+/// Returns `None` once prefix + cycle would exceed `max_digits` (1/1000003 repeats
+/// every 166668 digits — unreadable and slow to build on every keystroke).
+fn repeating_decimal_parts(num: &Natural, den: &Natural, max_digits: usize) -> Option<(String, String)> {
     let ten = Natural::from(10u32);
     let mut remainders: HashMap<Natural, usize> = HashMap::new();
     let mut digits: Vec<u32> = Vec::new();
@@ -307,13 +313,16 @@ fn repeating_decimal_parts(num: &Natural, den: &Natural) -> (String, String) {
 
     loop {
         if rem == Natural::ZERO {
-            return (digits_to_string(&digits), String::new());
+            return Some((digits_to_string(&digits), String::new()));
         }
         if let Some(&pos) = remainders.get(&rem) {
-            return (
+            return Some((
                 digits_to_string(&digits[..pos]),
                 digits_to_string(&digits[pos..]),
-            );
+            ));
+        }
+        if digits.len() >= max_digits {
+            return None;
         }
         remainders.insert(rem.clone(), digits.len());
         rem *= &ten;
@@ -371,8 +380,11 @@ fn format_rational_display(r: &Rational, digits: usize) -> String {
         return format_terminating_rational(neg, &int_part, &num, &den);
     }
 
-    let (prefix, repeat) = repeating_decimal_parts(&num, &den);
-    format_repeating_decimal(neg, &int_part, &prefix, &repeat)
+    match repeating_decimal_parts(&num, &den, digits) {
+        Some((prefix, repeat)) => format_repeating_decimal(neg, &int_part, &prefix, &repeat),
+        // Cycle too long to show: round instead (refeed stays the exact `(p/q)`).
+        None => format_bigfloat(&rational_to_bigfloat(r, DEFAULT_PREC), digits),
+    }
 }
 
 /// Refeed form: terminating → plain decimal; repeating → atom `(p/q)`.
@@ -699,6 +711,15 @@ mod tests {
     #[test]
     fn display_repeating_negative() {
         assert_eq!(r(-1, 3).to_string(), format!("-0.{}", overline_digits("3")));
+    }
+
+    #[test]
+    fn display_long_cycle_is_rounded_not_overlined() {
+        // 1/97 repeats every 96 digits; show 18 significant digits instead.
+        let d = r(1, 97).to_display_string(18);
+        assert_eq!(d, "0.0103092783505154639");
+        assert_eq!(r(1, 97).to_refeed_string(18), "(1/97)");
+        assert!(r(1, 1_000_003).to_display_string(18).len() < 30);
     }
 
     #[test]

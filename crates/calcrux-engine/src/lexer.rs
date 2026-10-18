@@ -12,9 +12,9 @@ use crate::error::EngineError;
 #[logos(error = LexErrorKind)]
 pub enum Token {
     // Numeric literals (integer, decimal, scientific).
-    // `e`/`E` only counts as exponent when followed by an optional sign and digits;
-    // otherwise `e` lexes as the Euler constant below.
-    #[regex(r"(?:[0-9]+\.[0-9]*|\.[0-9]+|[0-9]+)(?:[eE][+-]?[0-9]+)?", |lex| lex.slice().to_string(), priority = 3)]
+    // Only uppercase `E` is an exponent: lowercase `e` is always the Euler
+    // constant, so the keypad sequence `2`,`e`,`+`,`3` means 2e+3 ≈ 8.44, not 2000.
+    #[regex(r"(?:[0-9]+\.[0-9]*|\.[0-9]+|[0-9]+)(?:E[+-]?[0-9]+)?", |lex| lex.slice().to_string(), priority = 3)]
     Number(String),
 
     #[token("+")]
@@ -127,13 +127,13 @@ mod tests {
     #[test]
     fn decimals_and_scientific() {
         assert_eq!(
-            lex("3.14 + .5 - 2e10 * 1.5E-3"),
+            lex("3.14 + .5 - 2E10 * 1.5E-3"),
             vec![
                 Number("3.14".into()),
                 Plus,
                 Number(".5".into()),
                 Minus,
-                Number("2e10".into()),
+                Number("2E10".into()),
                 Mul,
                 Number("1.5E-3".into()),
             ]
@@ -186,8 +186,11 @@ mod tests {
 
     #[test]
     fn euler_vs_scientific_notation() {
-        // `2e5` → single number token (scientific).
-        assert_eq!(lex("2e5"), vec![Number("2e5".into())]);
+        // `2E5` → single number token (scientific).
+        assert_eq!(lex("2E5"), vec![Number("2E5".into())]);
+        // Lowercase `e` is always Euler, even before digits or a sign.
+        assert_eq!(lex("2e5"), vec![Number("2".into()), Euler, Number("5".into())]);
+        assert_eq!(lex("2e+3"), vec![Number("2".into()), Euler, Plus, Number("3".into())]);
         // `2e` with no digit after → number then Euler (implicit multiplication handled by parser).
         assert_eq!(lex("2e"), vec![Number("2".into()), Euler]);
         // Bare `e` → Euler.
