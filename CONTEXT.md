@@ -10,7 +10,7 @@
 - Play Console：個人帳號 `rx5950xt`；套件 `com.calcrux`；類別「工具」；內容分級全年齡；目標年齡 13+；資料安全「不收集資料」
 - 隱私權政策：獨立 repo `RX5950XT/calcrux-privacy` → https://rx5950xt.github.io/calcrux-privacy/
 - 商店素材：`store/`（icon、主題圖片 `feature-1024x500.png`、4 張 1080×2160 截圖）
-- 封閉測試（Alpha）：版本 7（0.1.6）已過審；測試者改用 Google 群組 `rx5950xt-testers@googlegroups.com`（變更送審中）
+- 封閉測試（Alpha）：版本 7（0.1.6）已過審；測試者改用 Google 群組 `rx5950xt-testers@googlegroups.com`（2026-10-21 已生效）
   - 加入群組：https://groups.google.com/g/rx5950xt-testers ，或寄信到 `rx5950xt-testers+subscribe@googlegroups.com`
   - 加入測試：https://play.google.com/apps/testing/com.calcrux
   - 群組可給其他 app（如 DroidProbe）共用；12 人 × 連續 14 天是每個 app 各自計算
