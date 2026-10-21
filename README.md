@@ -9,8 +9,18 @@ Android 計算機，Rust 核心 + Kotlin/Jetpack Compose UI。
 - **計算機**：基本與科學模式，支援三角函數、對數、階乘
 - **單位換算**：長度、面積、體積、重量、速度、時間、溫度、資料
 - **貸款計算**：等額本息與等額本金，可匯出 CSV
-- **匯率換算**：透過 [Frankfurter](https://www.frankfurter.app/) 取得即時匯率，離線備援，可釘選常用幣別
+- **匯率換算**：透過 [ExchangeRate-API](https://www.exchangerate-api.com/) 取得每日匯率，離線使用快取，可新增／排序幣別
 - **歷史紀錄**：Room 持久化，支援搜尋與刪除
+
+---
+
+## 下載（Google Play 封閉測試）
+
+目前在 Google Play 封閉測試中，尚未公開上架：
+
+1. 加入測試群組：https://groups.google.com/g/rx5950xt-testers
+2. 開啟測試連結並按「成為測試人員」：https://play.google.com/apps/testing/com.calcrux
+3. 從 Google Play 安裝
 
 ---
 

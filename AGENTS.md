@@ -69,13 +69,13 @@ android/app/build/outputs/apk/release/app-release.apk
 - 歷史已併入計算機：在顯示區下拉（或點歷史圖示）開啟；最新一筆在最下面，列表到底再上推／拖把手／返回鍵關閉；主分頁只剩「計算機／換算」
 - 歷史面板一直保持組合狀態，用 `graphicsLayer` 平移（不要改回改高度，會每幀重新量測列表而卡頓）；開關狀態用 `derivedStateOf`，避免整個計算機每幀重組
 - 16 KB 分頁（Android 15+）：`.cargo/config.toml` 對 64 位元 Android target 加 `-z max-page-size=16384`；JNA 需 ≥ 5.17.0。驗證：`zipalign -c -P 16 -v 4 <apk>` 與 `llvm-readelf -lW <so>`（LOAD Align 需為 `0x4000`）
-- 上架：`targetSdk/compileSdk = 36`（Play 自 2026-08-31 要求）；release 簽章讀 `android/keystore.properties` + `calcrux-upload.jks`（皆 gitignore，遺失就無法更新 Play 上的 app，需另外備份）；上傳用 `.\gradlew.bat bundleRelease` 產出 `app/build/outputs/bundle/release/app-release.aab`；商店 icon 原稿 `store/icon.svg`、`store/icon-512.png`
+- 上架：`targetSdk/compileSdk = 36`（Play 自 2026-08-31 要求）；release 簽章讀 `android/keystore.properties` + `calcrux-upload.jks`（皆 gitignore，遺失就無法更新 Play 上的 app，需另外備份）；上傳用 `.\gradlew.bat bundleRelease` 產出 `app/build/outputs/bundle/release/app-release.aab`；商店 icon 原稿 `store/icon.svg`、`store/icon-512.png`；目前 Play 封閉測試中（狀態見 `CONTEXT.md`）
 - 此工作站 `AvailPageFile` 偏低時，Rust Android cross-compile 與 Gradle daemon 可能失敗；重建 native library 前先確認分頁檔空間
 
 ## 現況摘要
 
 - 主畫面：calc / convert / loan / history / fx 已有 UI 與 ViewModel
-- 匯率：Frankfurter API + 離線 fallback
+- 匯率：ExchangeRate-API + 離線快取
 - 歷史紀錄：Room
 - 設定：DataStore
 - Android 端使用 Hilt、KSP、Material 3

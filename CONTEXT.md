@@ -5,7 +5,7 @@
 - 最新發行：`v0.1.6`（versionCode 7）
 - Release：https://github.com/RX5950XT/calcrux/releases/tag/v0.1.6
 
-## Google Play 上架（2026-10-20）
+## Google Play 上架（2026-10-21 更新）
 
 - Play Console：個人帳號 `rx5950xt`；套件 `com.calcrux`；類別「工具」；內容分級全年齡；目標年齡 13+；資料安全「不收集資料」
 - 隱私權政策：獨立 repo `RX5950XT/calcrux-privacy` → https://rx5950xt.github.io/calcrux-privacy/
@@ -14,6 +14,8 @@
   - 加入群組：https://groups.google.com/g/rx5950xt-testers ，或寄信到 `rx5950xt-testers+subscribe@googlegroups.com`
   - 加入測試：https://play.google.com/apps/testing/com.calcrux
   - 群組可給其他 app（如 DroidProbe）共用；12 人 × 連續 14 天是每個 app 各自計算
+- 目前狀態：封閉測試中，商店頁只有測試者看得到；尚未申請正式版
+- DroidProbe 同帳號、同群組，封閉測試版本 2（0.1.0）亦已生效
 - 下一步：湊滿 12 名測試者連續 14 天 → 申請正式版存取權（問卷）
 - 帳號綁有商家帳戶，商店頁「App support」會公開本名與地址（帳號層級，已決定接受）
 - 0.1.6 上傳的 AAB 移除了 `BUNDLE-METADATA`（R8 mapping、native debug symbols）後重簽，因瀏覽器自動化上傳上限 10 MB；app 本身不受影響，只是 Vitals 當機堆疊不可讀。之後手動上傳原始 `app-release.aab` 即可
